@@ -11,7 +11,8 @@
     "description": { "type": "string" },
     "category": {
       "type": "string",
-      "enum": ["talking_head", "generated", "hybrid", "screen_recording", "animation", "cinematic", "custom"]
+      "enum": ["talking_head", "generated", "hybrid", "screen_recording", "animation", "cinematic", "music_video", "custom"],
+      "description": "Pipeline domain. music_video covers beat-synced AMV / MAD pipelines."
     },
     "stability": {
       "type": "string",
@@ -153,6 +154,41 @@
         "custom_playbooks": { "type": "boolean", "default": true },
         "custom_skills": { "type": "boolean", "default": true },
         "custom_tools": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "runtime_lock": {
+      "type": "object",
+      "description": "Optional runtime lock — when present, the pipeline forbids swapping render_runtime away from the locked value. Used by music-video-anime (locks to hyperframes).",
+      "properties": {
+        "render_runtime": {
+          "type": "string",
+          "enum": ["ffmpeg", "remotion", "hyperframes"]
+        },
+        "allow_swap": { "type": "boolean", "default": false },
+        "rationale": { "type": "string" },
+        "forbidden_runtimes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["ffmpeg", "remotion", "hyperframes"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "beat_anchor_policy": {
+      "type": "object",
+      "description": "Optional beat-anchor policy for music-driven pipelines. Drives the analyzer referenced by scene_plan and edit_decisions.",
+      "properties": {
+        "required": { "type": "boolean", "default": true },
+        "analyzer": { "type": "string", "description": "Path or name of the beat analyzer tool" },
+        "analyzer_backend": { "type": "string" },
+        "anchor_types_allowed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["downbeat", "on_beat", "phrase_start", "phrase_end", "drop", "silence_start"]
+          }
+        },
+        "max_drift_ms": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     }

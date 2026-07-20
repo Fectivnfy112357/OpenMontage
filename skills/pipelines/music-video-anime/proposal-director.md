@@ -41,11 +41,14 @@ default route: video_downloader
   └─ no URL → ytsearch:<keywords>, license="user_requested",
               requires_explicit_acknowledgment=true
 
-ONLY when user said "用 AI 生成 / AI 画 / AI 出图":
+ONLY when user said "用 AI 生成 / AI 画 / AI 出图" / "AI 画一下" / "用 agnes" /
+     "让 AI 帮忙画" / "AI 出图" / "AI generate" / "use AI to draw":
   route: agnes_image + agnes_video
 ```
 
-This is binding — do NOT invert. If the user did not explicitly opt into AI generation, the asset route is `video_downloader`, period.
+This is binding — do NOT invert. If the user did not explicitly opt into AI generation (any of the trigger phrases above), the asset route is `video_downloader`, period. The mere fact that the user named an anime does NOT count as opt-in — AMVs are made from real anime clips by default, not generated.
+
+**At proposal stage you MUST ask the user the asset-route question (Step 2 below) before locking the route. A stale or guessed `brief.metadata.asset_route_options.agnes_opt_in` from research is NOT user approval.**
 
 ## Prerequisites
 
@@ -78,9 +81,16 @@ Read the `research_brief` and extract:
 - **`third_party_footage_candidates`** — AMV candidates that need user_ack
 - **Visual approach options** — the 2-3 directions from research
 
-### Step 2: Confirm Asset Route With User (Required)
+### Step 2: Global User Acknowledgment (REQUIRED, ONCE)
 
-Before designing concepts, lock the asset route:
+Before designing concepts, lock the run-wide ack. The user must acknowledge in their own words that this AMV uses third-party content with unclear licensing and is for personal / non-commercial use. See `research-director.md` "Global User Acknowledgment" for the exact prompt language and outcomes. This happens at research but the proposal confirms the value carried through.
+
+Outcomes:
+
+- If `brief.metadata.global_user_ack_obtained == true`: acknowledge once to the user ("全局 ack 已通过,后续不再问每段") and proceed.
+- If `false` or absent: re-prompt the user with the research skill's exact text. Do not assume. Re-prompting means asking the user to either ack or change route.
+
+Confirm also the asset route:
 
 ```
 ASSET ROUTE
@@ -94,8 +104,6 @@ ASSET ROUTE
 
 Which route? [video_downloader / AI generation / hybrid]
 ```
-
-This question is mandatory. Do not assume. The user's prior answer in the research brief is research-stage fact-finding, not approval.
 
 ### Step 3: Music Plan — Already Locked
 

@@ -112,18 +112,19 @@ stages:
     checkpoint_required: true
     human_approval_default: false
     review_focus:
-      - Music track has been resolved (Step 1 in research-director.md) via option A/B/C
-      - If option C (ytsearch_artist_track), the user has explicitly acked the license at research stage
-      - Music file exists on disk and passes ffprobe duration check
-      - Anime theme has been characterized (visual motifs, character silhouettes, palette cues)
-      - At least 2-3 distinct visual approaches identified (palette, motion register, source-of-footage)
-      - Any third-party footage candidates have provenance URLs flagged for later user_ack
+      - "Music track has been resolved (Step 1 in research-director.md) via option A/B/C"
+      - "If option C (ytsearch_artist_track), the user has explicitly acked the license at research stage"
+      - "Music file exists on disk and passes ffprobe duration check"
+      - "Anime theme has been characterized (visual motifs, character silhouettes, palette cues)"
+      - "At least 2-3 distinct visual approaches identified (palette, motion register, source-of-footage)"
+      - "Any third-party footage candidates have provenance URLs flagged for later user_ack"
     success_criteria:
-      - Schema-valid music_video_brief artifact (validated via schemas.artifacts.validate_artifact)
-      - music_video_brief.metadata.audiomap_path references a real audiomap.json on disk
-      - music_video_brief.metadata.anime_theme names the anime and source-of-truth
-      - music_track_source_license_consistency is satisfied (oneOf branches pass)
-      - If music_track_requires_user_ack is true, music_track_user_ack_obtained must be true
+      - "Schema-valid music_video_brief artifact (validated via schemas.artifacts.validate_artifact)"
+      - "music_video_brief.metadata.audiomap_path references a real audiomap.json on disk"
+      - "music_video_brief.metadata.anime_theme names the anime and source-of-truth"
+      - "music_track_source_license_consistency is satisfied (oneOf branches pass)"
+      - "If music_track_requires_user_ack is true, music_track_user_ack_obtained must be true"
+      - "music_video_brief.metadata.global_user_ack_obtained is set per research stage"
 
   - name: proposal
     skill: pipelines/music-video-anime/proposal-director
@@ -136,18 +137,18 @@ stages:
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - music_video_proposal_packet.production_plan.render_runtime must equal hyperframes (runtime_lock forbids swap)
-      - Asset route is explicit: video_downloader (default) OR agnes_image + agnes_video (only when user has opted in)
-      - If video_downloader without user-provided URL, the plan names the ytsearch keywords query and flags requires_user_ack=true
-      - Number of scenes is consistent with music length and beat grid density
-      - Cost estimate includes beat-anchor analysis cost (zero — local npx) and any AI generation cost
+      - "music_video_proposal_packet.production_plan.render_runtime must equal hyperframes (runtime_lock forbids swap)"
+      - "Asset route is explicit: video_downloader (default) OR agnes_image + agnes_video (only when user has opted in)"
+      - "If video_downloader without user-provided URL, the plan names the ytsearch keywords query and inherits global_user_ack_obtained from brief"
+      - "Number of scenes is consistent with music length and beat grid density"
+      - "Cost estimate includes beat-anchor analysis cost (zero, local npx) and any AI generation cost"
     success_criteria:
-      - Schema-valid music_video_proposal_packet artifact
-      - music_video_proposal_packet.production_plan.render_runtime equals hyperframes
-      - music_video_proposal_packet.production_plan.asset_route is one of: video_downloader, ai_generation, hybrid
-      - If asset_route is video_downloader AND no user URL provided, requires_user_ack must be true
-      - At least 2 concept options with different motion registers
-      - decision_log contains a render_runtime_selection entry that lists all three runtimes and the locked_choice rationale
+      - "Schema-valid music_video_proposal_packet artifact"
+      - "music_video_proposal_packet.production_plan.render_runtime equals hyperframes"
+      - "music_video_proposal_packet.production_plan.asset_route is one of: video_downloader, ai_generation, hybrid"
+      - "If asset_route is video_downloader AND no user URL provided, requires_user_ack inheritance is documented"
+      - "At least 2 concept options with different motion registers"
+      - "decision_log contains a render_runtime_selection entry that lists all three runtimes and the locked_choice rationale"
 
   - name: script
     skill: pipelines/music-video-anime/script-director
@@ -162,15 +163,15 @@ stages:
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - Script is built around the BEAT MAP, not the other way around — every beat must land on a visual change
-      - Script has NO narration — it is a beat-anchored cut list + optional subtitle card text
-      - subtitle cards are minimal and on-beat (downbeat or on_beat anchor only)
-      - Music section boundaries (intro/verse/chorus/drop) are explicit
+      - "Script is built around the BEAT MAP, not the other way around — every beat must land on a visual change"
+      - "Script has NO narration — it is a beat-anchored cut list + optional subtitle card text"
+      - "subtitle cards are minimal and on-beat (downbeat or on_beat anchor only)"
+      - "Music section boundaries (intro/verse/chorus/drop) are explicit"
     success_criteria:
-      - Schema-valid music_video_script artifact
-      - music_video_script.sections each carry beat_anchor (downbeat, on_beat, phrase_start, or drop)
-      - Total cut count is reasonable for target duration (typical: 1 cut per 0.5-4s for fast AMV, 2-6s for mood AMV)
-      - Lyrics / subtitle text references audiomap.onsets when relevant
+      - "Schema-valid music_video_script artifact"
+      - "music_video_script.sections each carry beat_anchor (downbeat, on_beat, phrase_start, or drop)"
+      - "Total cut count reasonable for target duration: typical 1 cut per 0.5-4s for fast AMV, 2-6s for mood AMV"
+      - "Lyrics / subtitle text references audiomap.onsets when relevant"
 
   - name: scene_plan
     skill: pipelines/music-video-anime/scene-director
@@ -186,16 +187,16 @@ stages:
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - Every scene carries a beat_anchor (REQUIRED — see pipeline beat_anchor_policy)
-      - Adjacent scenes do not share the same beat_anchor AND same visual category (variety check)
-      - Hero scenes are explicit (chorus drops, key moments, transition beats)
-      - Visual transitions are mostly hard-cut (default for AMV); sparingly use flash/zoom/whipe for accents
-      - Scene duration equals anchor_next minus anchor_this; no off-anchor holds
+      - "Every scene carries a beat_anchor (REQUIRED — see pipeline beat_anchor_policy)"
+      - "Adjacent scenes do not share the same beat_anchor AND same visual category (variety check)"
+      - "Hero scenes are explicit (chorus drops, key moments, transition beats)"
+      - "Visual transitions are mostly hard-cut (default for AMV); sparingly use flash/zoom/whipe for accents"
+      - "Scene duration equals anchor_next minus anchor_this; no off-anchor holds"
     success_criteria:
-      - Schema-valid music_video_scene_plan artifact
-      - Every scene has a non-null beat_anchor
-      - Sum of (scene.end_seconds minus scene.start_seconds) is within 200ms of music duration
-      - Each scene's start_seconds is within 50ms of its beat_anchor.t_seconds
+      - "Schema-valid music_video_scene_plan artifact"
+      - "Every scene has a non-null beat_anchor"
+      - "Sum of (scene.end_seconds minus scene.start_seconds) is within 200ms of music duration"
+      - "Each scene start_seconds is within 50ms of its beat_anchor.t_seconds"
 
   - name: assets
     skill: pipelines/music-video-anime/asset-director
@@ -214,17 +215,17 @@ stages:
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - Default asset route is video_downloader (per music_video_proposal_packet.production_plan.asset_route)
-      - If video_downloader without user-provided URL, every downloaded clip has license=user_requested AND requires_user_ack=true
-      - If agnes_image / agnes_video is used, the brief or proposal records the user-opt-in explicitly
-      - Every scene has exactly one matched asset (video clip OR generated image/animation)
-      - All asset files exist on disk and pass ffprobe / file-size sanity check
+      - "Default asset route is video_downloader (per music_video_proposal_packet.production_plan.asset_route)"
+      - "If video_downloader without user-provided URL, every downloaded clip has license=user_requested AND inherits user_ack_obtained from brief.metadata.global_user_ack_obtained"
+      - "If agnes_image / agnes_video is used, the brief or proposal records the user-opt-in explicitly"
+      - "Every scene has exactly one matched asset (video clip OR generated image/animation)"
+      - "All asset files exist on disk and pass ffprobe / file-size sanity check"
     success_criteria:
-      - Schema-valid music_video_asset_manifest artifact
-      - All asset license fields are present and valid (one of: user_provided, user_requested, ai_generated)
-      - One asset per scene slot (1:1 mapping)
-      - No asset_id reused across two scenes
-      - requires_user_ack=true assets have been acknowledged in music_video_proposal_packet.acknowledgments OR new user confirmation is sought here
+      - "Schema-valid music_video_asset_manifest artifact"
+      - "All asset license fields are present and valid: one of user_provided, user_requested, ai_generated"
+      - "One asset per scene slot 1:1 mapping"
+      - "No asset_id reused across two scenes"
+      - "requires_user_ack=true assets acknowledged via brief metadata global_user_ack_obtained OR per-asset user_ack_obtained"
 
   - name: edit
     skill: pipelines/music-video-anime/edit-director
@@ -241,16 +242,16 @@ stages:
     checkpoint_required: true
     human_approval_default: false
     review_focus:
-      - music_video_edit_decisions.render_runtime must equal hyperframes (matches proposal — no silent swap)
-      - Every cut has a beat_anchor (REQUIRED)
-      - Cut duration equals next_anchor.t minus this_anchor.t (no over/under-hold)
-      - Adjacent cuts use the same visual treatment variety check (no two consecutive fade cuts)
-      - Cut count × typical cut length covers at least 95% of music duration (no large dead zones)
+      - "music_video_edit_decisions.render_runtime must equal hyperframes (matches proposal — no silent swap)"
+      - "Every cut has a beat_anchor (REQUIRED)"
+      - "Cut duration equals next_anchor.t minus this_anchor.t (no over/under-hold)"
+      - "Adjacent cuts use the same visual treatment variety check (no two consecutive fade cuts)"
+      - "Cut count x typical cut length covers at least 95% of music duration (no large dead zones)"
     success_criteria:
-      - Schema-valid music_video_edit_decisions artifact
-      - music_video_edit_decisions.render_runtime equals hyperframes
-      - Every cut has beat_anchor within 50ms of its at_seconds
-      - Total cut duration within 200ms of music duration
+      - "Schema-valid music_video_edit_decisions artifact"
+      - "music_video_edit_decisions.render_runtime equals hyperframes"
+      - "Every cut has beat_anchor within 50ms of its at_seconds"
+      - "Total cut duration within 200ms of music duration"
 
   - name: compose
     skill: pipelines/music-video-anime/compose-director
@@ -272,21 +273,21 @@ stages:
     checkpoint_required: true
     human_approval_default: false
     review_focus:
-      - Output was rendered via hyperframes_compose (NOT ffmpeg, NOT remotion — runtime_lock forbids)
-      - hyperframes lint and validate both passed before render
-      - Output duration matches music duration within 200ms
-      - Audio bed matches the music track used in research / script; no silent gap or drift
-      - At least 3 frame samples were inspected at downbeats to verify beat-sync visual change
-      - audio_mixer used only when source audio needs normalization (rare for music tracks)
+      - "Output was rendered via hyperframes_compose (NOT ffmpeg, NOT remotion — runtime_lock forbids)"
+      - "hyperframes lint and validate both passed before render"
+      - "Output duration matches music duration within 200ms"
+      - "Audio bed matches the music track used in research / script; no silent gap or drift"
+      - "At least 3 frame samples were inspected at downbeats to verify beat-sync visual change"
+      - "audio_mixer used only when source audio needs normalization (rare for music tracks)"
     success_criteria:
-      - Schema-valid music_video_render_report artifact
-      - music_video_render_report.render_runtime equals hyperframes
-      - music_video_render_report.music_track matches the analyzed track (path or hash)
-      - music_video_render_report.runtime_swap_detected is false
-      - music_video_render_report.silent_fallback_used is false
-      - music_video_render_report.audio_post_processing.music_mixed is true OR explicit_skip_with_reason is set
-      - Output MP4 file exists and passes ffprobe validation
-      - music_video_render_report.beat_sync_verification.verification_passed is true
+      - "Schema-valid music_video_render_report artifact"
+      - "music_video_render_report.render_runtime equals hyperframes"
+      - "music_video_render_report.music_track matches the analyzed track (path or hash)"
+      - "music_video_render_report.runtime_swap_detected is false"
+      - "music_video_render_report.silent_fallback_used is false"
+      - "music_video_render_report.audio_post_processing.music_mixed is true OR explicit_skip_with_reason is set"
+      - "Output MP4 file exists and passes ffprobe validation"
+      - "music_video_render_report.beat_sync_verification.verification_passed is true"
 
   - name: publish
     skill: pipelines/music-video-anime/publish-director
@@ -298,15 +299,15 @@ stages:
     produces:
       - publish_log
     tools_available:
-      - export_bundle
+      - ffmpeg
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - Hero export and any derivative exports are clearly labeled
-      - Metadata includes music_track metadata (artist, title, license) and anime_theme
-      - Poster-frame or thumbnail concept is coherent with the beat map
-      - The publish_log records any third-party footage user_ack chain end-to-end
+      - "Hero export and any derivative exports are clearly labeled"
+      - "Metadata includes music_track metadata (artist, title, license) and anime_theme"
+      - "Poster-frame or thumbnail concept is coherent with the beat map"
+      - "The publish_log records any third-party footage user_ack chain end-to-end via ack_source=brief.metadata.global_user_ack_obtained"
     success_criteria:
-      - Schema-valid publish_log artifact
-      - Export package contains video and metadata outputs
-      - publish_log.metadata.provenance_chain documents every user_provided, user_requested, and ai_generated asset back to its source
+      - "Schema-valid publish_log artifact"
+      - "Export package contains video and metadata outputs"
+      - "publish_log.metadata.provenance_chain documents every user_provided, user_requested, and ai_generated asset back to its source"

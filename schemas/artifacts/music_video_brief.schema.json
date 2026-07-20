@@ -37,7 +37,7 @@
     },
     "metadata": {
       "type": "object",
-      "required": ["music_track_path", "music_track_duration_seconds", "anime_theme", "asset_route_options", "music_track_source", "music_track_license", "music_track_requires_user_ack", "music_track_user_ack_obtained"],
+      "required": ["music_track_path", "music_track_duration_seconds", "anime_theme", "asset_route_options", "music_track_source", "music_track_license", "music_track_requires_user_ack", "music_track_user_ack_obtained", "global_user_ack_obtained"],
       "oneOf_music_track_consistency_comment": "The oneOf below enforces that music_track_source, music_track_license, music_track_requires_user_ack, and music_track_user_ack_obtained agree. This is at the metadata object level (peer of properties), so it applies across the four sibling fields. The three valid combinations are listed in the description.",
       "oneOf": [
         {
@@ -91,6 +91,10 @@
         "music_track_user_ack_obtained": {
           "type": ["boolean", "null"],
           "description": "True if the user explicitly acknowledged the license risk. When requires_user_ack is true, this MUST be true before compose runs (compose-director will reject otherwise). When requires_user_ack is false, this is null."
+        },
+        "global_user_ack_obtained": {
+          "type": "boolean",
+          "description": "Run-wide user acknowledgment. When true, all ytsearch / user_requested assets AND ytsearch-acquired music track inherit this ack without requiring per-asset confirmation. Sets once at research stage after the user explicitly acknowledges that this AMV uses third-party anime clips and YouTube-sourced music with potentially unclear licensing and is for personal (non-commercial) use. Subsequent per-asset user_ack fields may be omitted or refer back to this."
         },
         "audiomap_path": {
           "type": "string",

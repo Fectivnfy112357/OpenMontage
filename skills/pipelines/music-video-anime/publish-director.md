@@ -32,7 +32,7 @@ asset_id → source_url → license → user_ack (if applicable)
 ```
 
 Special rules:
-- `license == user_requested` MUST have `user_ack_obtained == true` in the manifest, AND a corresponding entry in `music_video_proposal_packet.acknowledgments`
+- `license == user_requested` MUST have `user_ack_obtained == true` in the manifest. The ack can come from either (a) the per-asset user ack OR (b) the inherited `brief.metadata.global_user_ack_obtained` (when this run did a one-time global acknowledgment at research stage). For path (b), `ack_source` must read `"brief.metadata.global_user_ack_obtained"` in the publish_log.
 - `license == user_provided` MUST have a `source_url` (the URL the user gave)
 - `license == ai_generated` has no third-party IP — record `seed` and `prompt` for reproducibility
 

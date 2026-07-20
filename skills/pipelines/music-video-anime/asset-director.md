@@ -82,7 +82,7 @@ For every asset, record in `asset_manifest.entries[].license`:
 | `ai_generated` | agnes_image or agnes_video produced it | `false` (no third-party IP) |
 | `music_library` | Track from `music_library/` (this is for audio, not video — applies if reusing music) | `false` |
 
-**`requires_user_ack=true` assets MUST be acknowledged in the proposal_packet.acknowledgments OR new user confirmation is sought at this stage.** If the user has not acknowledged, STOP and ask.
+**`requires_user_ack=true` assets**: by default they inherit `music_video_brief.metadata.global_user_ack_obtained`. When the global flag is `true`, do **not** re-prompt per asset — set `user_ack_obtained=true` directly with `ack_source: "brief.global_user_ack_obtained"`. Only re-prompt when the global flag is `false` or absent.
 
 ### 4. Asset Acquisition — HARD ROUTE GATE
 
