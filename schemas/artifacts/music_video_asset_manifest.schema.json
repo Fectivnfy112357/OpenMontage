@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_asset_manifest",
+  "title": "Music Video Anime Asset Manifest",
+  "description": "Per-scene asset manifest for an AMV. The license field is REQUIRED and tracks whether each asset is user_provided, user_requested (ytsearch), or ai_generated. user_requested assets require explicit user_ack.",
+  "type": "object",
+  "required": ["version", "entries", "metadata"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "asset_id", "asset_type", "source", "path", "duration_seconds", "license", "requires_user_ack"],
+        "properties": {
+          "scene_id": { "type": "string", "pattern": "^s[0-9]{3,}$" },
+          "asset_id": { "type": "string", "pattern": "^a[0-9]{3,}$" },
+          "asset_type": {
+            "type": "string",
+            "enum": ["video_clip", "image", "image_animation"]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["video_downloader", "agnes_image", "agnes_video"],
+            "description": "Which tool produced this asset"
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path to the asset file under projects/<project-id>/assets/"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 0.1,
+            "description": "Asset duration; must be >= scene duration (asset will be trimmed to fit)"
+          },
+          "license": {
+            "type": "string",
+            "enum": ["user_provided", "user_requested", "ai_generated"],
+            "description": "user_provided: user gave a specific URL or dropped a file. user_requested: ytsearch result, no specific user URL. ai_generated: agnes_image/video output. (Note: music_library is intentionally NOT here — music-video-anime assets are visual, not audio.)"
+          },
+          "requires_user_ack": {
+            "type": "boolean",
+            "description": "True for user_requested (AMV-derived, license unclear). False for user_provided and ai_generated."
+          },
+          "user_ack_obtained": {
+            "type": "boolean",
+            "description": "True if user has acknowledged this asset's license. If requires_user_ack=true, this MUST be true before compose."
+          },
+          "source_url": {
+            "type": ["string", "null"],
+            "description": "Original URL (for user_provided and user_requested); null for ai_generated"
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "original_url": { "type": ["string", "null"] },
+              "search_query": { "type": ["string", "null"], "description": "ytsearch:<keywords> if applicable" },
+              "channel_or_artist": { "type": ["string", "null"] },
+              "license_note": { "type": "string" }
+            }
+          },
+          "seed": {
+            "type": ["integer", "null"],
+            "description": "Seed used for AI generation; null for downloaded assets. Reproducibility anchor."
+          },
+          "checksum": {
+            "type": "string",
+            "description": "sha256 of the file for integrity verification"
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["standard", "hero"],
+            "description": "Higher quality tag for hero scene assets"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["asset_route", "total_assets", "license_summary"],
+      "properties": {
+        "asset_route": {
+          "type": "string",
+          "enum": ["video_downloader", "ai_generation", "hybrid"]
+        },
+        "total_assets": { "type": "integer", "minimum": 1 },
+        "user_ack_required_count": { "type": "integer", "minimum": 0 },
+        "user_ack_obtained_count": { "type": "integer", "minimum": 0 },
+        "license_summary": {
+          "type": "object",
+          "properties": {
+            "user_provided": { "type": "integer", "minimum": 0 },
+            "user_requested": { "type": "integer", "minimum": 0 },
+            "ai_generated": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cross_scene_source_reuse": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "asset_id": { "type": "string" },
+              "scene_ids": { "type": "array", "items": { "type": "string" } },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

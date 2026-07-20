@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_edit_decisions",
+  "title": "Music Video Anime Edit Decisions",
+  "description": "The cut list for an AMV. The render_runtime field is LOCKED to 'hyperframes' by the pipeline manifest runtime_lock. Every cut must align to a beat_anchor within 50ms drift.",
+  "type": "object",
+  "required": ["version", "render_runtime", "music_track", "cuts", "metadata"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "render_runtime": {
+      "type": "string",
+      "const": "hyperframes",
+      "description": "LOCKED by pipeline runtime_lock. compose-director will reject any other value."
+    },
+    "music_track": {
+      "type": "object",
+      "required": ["path", "duration_seconds", "audiomap_path"],
+      "properties": {
+        "path": { "type": "string" },
+        "duration_seconds": { "type": "number", "minimum": 0.1 },
+        "audiomap_path": { "type": "string" }
+      }
+    },
+    "cuts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["cut_id", "scene_id", "asset_id", "asset_path", "at_seconds", "duration_seconds", "beat_anchor", "drift_ms"],
+        "properties": {
+          "cut_id": { "type": "string", "pattern": "^c[0-9]{3,}$" },
+          "scene_id": { "type": "string" },
+          "asset_id": { "type": "string" },
+          "asset_path": { "type": "string" },
+          "at_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "When the cut starts. MUST equal beat_anchor.t_seconds within 50ms (verified by drift_ms)."
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 0.1,
+            "description": "Cut length. MUST equal next cut's at_seconds - this cut's at_seconds (cuts tile the music)."
+          },
+          "beat_anchor": {
+            "type": "object",
+            "required": ["type", "t_seconds", "source"],
+            "properties": {
+              "type": { "type": "string", "enum": ["downbeat", "on_beat", "phrase_start", "phrase_end", "drop", "silence_start"] },
+              "t_seconds": { "type": "number" },
+              "source": { "type": "string" }
+            }
+          },
+          "drift_ms": {
+            "type": "number",
+            "maximum": 50,
+            "description": "Computed: 1000 * abs(at_seconds - beat_anchor.t_seconds). Must be <= 50."
+          },
+          "transition_in": {
+            "type": "string",
+            "enum": ["hard_cut", "flash_white", "flash_black", "freeze_frame", "ken_burns"]
+          },
+          "transition_out": {
+            "type": "string",
+            "enum": ["hard_cut", "flash_white", "flash_black", "freeze_frame", "ken_burns"]
+          },
+          "trim": {
+            "type": "object",
+            "description": "Where in the source asset to read from",
+            "properties": {
+              "asset_in_seconds": { "type": "number", "minimum": 0 },
+              "asset_out_seconds": { "type": "number", "minimum": 0 }
+            }
+          },
+          "motion": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["static", "ken_burns_in", "ken_burns_out"] },
+              "intensity": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "overlay": {
+            "type": ["object", "null"],
+            "properties": {
+              "text": { "type": "string" },
+              "at_seconds_within_cut": { "type": "number" },
+              "duration_seconds_within_cut": { "type": "number" },
+              "style": { "type": "string", "enum": ["karaoke", "impact", "title"] }
+            }
+          },
+          "rationale": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["total_cuts", "total_duration_seconds", "drift_check_passed", "register"],
+      "properties": {
+        "total_cuts": { "type": "integer", "minimum": 1 },
+        "total_duration_seconds": { "type": "number" },
+        "transition_vocabulary_used": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 4
+        },
+        "motion_distribution": {
+          "type": "object",
+          "properties": {
+            "static": { "type": "integer" },
+            "ken_burns_in": { "type": "integer" },
+            "freeze_frame": { "type": "integer" }
+          }
+        },
+        "drift_check_passed": { "type": "boolean" },
+        "max_drift_ms_observed": { "type": "integer", "maximum": 50 },
+        "beat_grid_reliable": { "type": "boolean" },
+        "register": {
+          "type": "string",
+          "enum": ["kinetic-burst", "phrase-led", "hybrid-burst"]
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_brief",
+  "title": "Music Video Anime Brief",
+  "description": "Creative brief produced by the Research Director for a beat-synced anime music video. Distinct from the general brief — it carries the music_track and anime_theme as first-class fields, with the asset_route pre-decision recorded for the proposal stage.",
+  "type": "object",
+  "required": ["version", "title", "hook", "key_points", "tone", "style", "target_platform", "target_duration_seconds", "metadata"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "title": { "type": "string", "minLength": 1, "description": "Working title (e.g. 'AMV: Rascal × Perfect Blue')" },
+    "hook": { "type": "string", "description": "One-line creative direction (not a teaser hook; this is for internal use)" },
+    "key_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "core_message": { "type": "string" },
+    "cta": { "type": "string", "description": "Optional call-to-action (rarely used for AMV)" },
+    "tone": {
+      "type": "string",
+      "enum": ["kinetic", "mood-led", "hybrid-burst"],
+      "description": "Motion register — drives cut density in script/scene_plan"
+    },
+    "style": {
+      "type": "string",
+      "description": "Visual style reference; e.g. 'anime music video (AMV/MAD)' or specific anime title if explicit"
+    },
+    "target_audience": { "type": "string" },
+    "target_platform": {
+      "type": "string",
+      "enum": ["youtube", "instagram", "tiktok", "bilibili", "youtube_shorts", "generic"]
+    },
+    "target_duration_seconds": {
+      "type": "number",
+      "minimum": 1,
+      "description": "Total video length; typically equals music_track.duration_seconds"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["music_track_path", "music_track_duration_seconds", "anime_theme", "asset_route_options", "music_track_source", "music_track_license", "music_track_requires_user_ack", "music_track_user_ack_obtained"],
+      "oneOf_music_track_consistency_comment": "The oneOf below enforces that music_track_source, music_track_license, music_track_requires_user_ack, and music_track_user_ack_obtained agree. This is at the metadata object level (peer of properties), so it applies across the four sibling fields. The three valid combinations are listed in the description.",
+      "oneOf": [
+        {
+          "description": "user_provided + user_provided + false + null",
+          "properties": {
+            "music_track_source": { "const": "user_provided" },
+            "music_track_license": { "const": "user_provided" },
+            "music_track_requires_user_ack": { "const": false },
+            "music_track_user_ack_obtained": { "type": "null" }
+          }
+        },
+        {
+          "description": "video_downloader_url + user_provided + false + null",
+          "properties": {
+            "music_track_source": { "const": "video_downloader_url" },
+            "music_track_license": { "const": "user_provided" },
+            "music_track_requires_user_ack": { "const": false },
+            "music_track_user_ack_obtained": { "type": "null" }
+          }
+        },
+        {
+          "description": "ytsearch_artist_track + user_requested + true + true",
+          "properties": {
+            "music_track_source": { "const": "ytsearch_artist_track" },
+            "music_track_license": { "const": "user_requested" },
+            "music_track_requires_user_ack": { "const": true },
+            "music_track_user_ack_obtained": { "const": true }
+          }
+        }
+      ],
+      "properties": {
+        "music_track_path": {
+          "type": "string",
+          "description": "Absolute path to the locked music file under projects/<project-id>/assets/music/"
+        },
+        "music_track_duration_seconds": { "type": "number", "minimum": 0.1 },
+        "music_track_source": {
+          "type": "string",
+          "enum": ["user_provided", "video_downloader_url", "ytsearch_artist_track"],
+          "description": "How the music file was acquired. Drives license/requires_user_ack consistency (see music_track_license)."
+        },
+        "music_track_license": {
+          "type": "string",
+          "enum": ["user_provided", "user_requested", "royalty_free"],
+          "description": "License tag for the music file. MUST be consistent with music_track_source — see music_track_source_license_consistency."
+        },
+        "music_track_requires_user_ack": {
+          "type": "boolean",
+          "description": "True iff music_track_source == 'ytsearch_artist_track'. Schema enforces this via music_track_source_license_consistency."
+        },
+        "music_track_user_ack_obtained": {
+          "type": ["boolean", "null"],
+          "description": "True if the user explicitly acknowledged the license risk. When requires_user_ack is true, this MUST be true before compose runs (compose-director will reject otherwise). When requires_user_ack is false, this is null."
+        },
+        "audiomap_path": {
+          "type": "string",
+          "description": "Absolute path to artifacts/audiomap.json produced by beat_anchor.py"
+        },
+        "bpm": {
+          "type": ["number", "null"],
+          "description": "Detected BPM; null if beat_grid_reliable=false"
+        },
+        "beat_grid_reliable": {
+          "type": "boolean",
+          "description": "True if audiomap.bpm and audiomap.beats_sec are trustworthy for this track; false for calm/ambient tracks where the grid is a metronome imposed on the music"
+        },
+        "anime_theme": {
+          "type": "object",
+          "description": "Either explicit (named anime) or vibe-register based",
+          "properties": {
+            "explicit": { "type": "boolean" },
+            "title": { "type": "string", "description": "Anime title (English or original language)" },
+            "title_romaji": { "type": "string" },
+            "characters": { "type": "array", "items": { "type": "string" } },
+            "motifs": { "type": "array", "items": { "type": "string" }, "description": "Key visual elements (locations, costumes, props)" },
+            "palette": { "type": "string", "description": "Color world cues (e.g. 'Sakurajima pink + Fujisawa sunset orange')" },
+            "vibe_register": { "type": "string", "description": "Only when explicit=false: e.g. 'shonen', 'iyashi-keki', 'josei'" }
+          }
+        },
+        "asset_route_options": {
+          "type": "object",
+          "description": "What asset routes were surfaced by research. The actual route is decided at proposal stage.",
+          "properties": {
+            "user_provided_urls": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "URLs the user dropped for reference clips"
+            },
+            "ytsearch_candidates": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Suggested ytsearch:<keywords> queries if user did not provide URLs"
+            },
+            "agnes_opt_in": {
+              "type": "boolean",
+              "description": "True ONLY if user has explicitly said '用 AI 生成 / AI 画 / AI 出图'"
+            }
+          }
+        },
+        "third_party_footage_candidates": {
+          "type": "array",
+          "description": "AMV candidates that need user_ack",
+          "items": {
+            "type": "object",
+            "required": ["candidate_url", "requires_user_ack"],
+            "properties": {
+              "candidate_url": { "type": "string" },
+              "source_channel": { "type": "string" },
+              "notes": { "type": "string" },
+              "requires_user_ack": { "type": "boolean", "const": true }
+            }
+          }
+        },
+        "visual_references": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "URLs to visual reference stills / key art / AMV references"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

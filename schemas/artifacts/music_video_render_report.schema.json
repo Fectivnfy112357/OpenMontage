@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_render_report",
+  "title": "Music Video Anime Render Report",
+  "description": "Render report for an AMV. The render_runtime field MUST be 'hyperframes' per pipeline runtime_lock. The beat_sync_verification block is REQUIRED — an AMV that fails beat sync verification is not delivered.",
+  "type": "object",
+  "required": ["version", "render_runtime", "output_path", "music_track", "rendering", "validation", "beat_sync_verification", "runtime_swap_detected", "silent_fallback_used"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "render_runtime": {
+      "type": "string",
+      "const": "hyperframes",
+      "description": "MUST be 'hyperframes'. compose-director rejects other values per pipeline runtime_lock."
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Absolute path to the final MP4, typically projects/<project-id>/renders/final.mp4"
+    },
+    "music_track": {
+      "type": "object",
+      "required": ["path", "duration_seconds", "audiomap_path"],
+      "properties": {
+        "path": { "type": "string" },
+        "duration_seconds": { "type": "number" },
+        "audiomap_path": { "type": "string" },
+        "rendered_audiomap_match_ms": {
+          "type": "number",
+          "maximum": 200,
+          "description": "Max drift between source audiomap and rendered MP4's audio audiomap. Must be <= 200."
+        }
+      }
+    },
+    "rendering": {
+      "type": "object",
+      "required": ["tool", "fps", "render_duration_seconds"],
+      "properties": {
+        "tool": { "type": "string", "const": "hyperframes_compose" },
+        "tool_version": { "type": "string" },
+        "quality": { "type": "string", "enum": ["draft", "production"] },
+        "fps": { "type": "integer", "enum": [24, 25, 30, 60] },
+        "render_duration_seconds": { "type": "number" },
+        "wall_clock_started_at": { "type": "string" },
+        "wall_clock_completed_at": { "type": "string" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["hyperframes_lint_passed", "hyperframes_validate_passed", "ffprobe_passed", "duration_seconds", "resolution", "has_audio"],
+      "properties": {
+        "hyperframes_lint_passed": { "type": "boolean" },
+        "hyperframes_validate_passed": { "type": "boolean" },
+        "ffprobe_passed": { "type": "boolean" },
+        "duration_seconds": { "type": "number" },
+        "resolution": { "type": "string" },
+        "has_audio": { "type": "boolean" },
+        "video_codec": { "type": "string" },
+        "audio_codec": { "type": "string" }
+      }
+    },
+    "audio_post_processing": {
+    "type": "object",
+    "description": "Tracks audio_mixer usage and its outcome. Mandatory on this pipeline so reviewers know whether audio was normalized or passed through unchanged.",
+    "required": ["music_mixed"],
+    "properties": {
+      "music_mixed": {
+        "type": "boolean",
+        "description": "True if audio_mixer was applied (normalize / fade_in / fade_out). False for raw passthrough."
+      },
+      "explicit_skip_with_reason": {
+        "type": ["string", "null"],
+        "description": "When music_mixed=false, REQUIRED to explain why normalization was skipped (e.g. 'music track already at -14 LUFS, no fade needed'). Empty/null not allowed when music_mixed=false."
+      },
+      "operations_applied": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["normalize", "fade_in", "fade_out", "ducking"] },
+            "params": { "type": "object" }
+          }
+        }
+      },
+      "pre_mix_lufs": { "type": ["number", "null"] },
+      "post_mix_lufs": { "type": ["number", "null"] }
+    }
+  },
+  "beat_sync_verification": {
+      "type": "object",
+      "required": ["frames_sampled_at", "all_downbeats_show_visual_change", "verification_passed"],
+      "properties": {
+        "frames_sampled_at": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Timestamps (as strings, e.g. '12.34') where frames were extracted for visual inspection"
+        },
+        "all_downbeats_show_visual_change": { "type": "boolean" },
+        "rendered_audiomap_drift_ms_max": { "type": "integer", "maximum": 200 },
+        "verification_passed": { "type": "boolean" }
+      }
+    },
+    "runtime_swap_detected": {
+      "type": "boolean",
+      "const": false,
+      "description": "Governance check: if true, the render was done with a runtime other than the locked hyperframes. compose-director rejects."
+    },
+    "silent_fallback_used": {
+      "type": "boolean",
+      "const": false,
+      "description": "Governance check: if true, the renderer fell back to a degraded path without user approval."
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "hyperframes_compose_version": { "type": "string" },
+        "asset_count_used": { "type": "integer" },
+        "cut_count_rendered": { "type": "integer" },
+        "hero_scene_count": { "type": "integer" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

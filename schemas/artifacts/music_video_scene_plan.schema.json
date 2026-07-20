@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_scene_plan",
+  "title": "Music Video Anime Scene Plan",
+  "description": "Beat-anchored scene list for an AMV. Every scene MUST carry a beat_anchor pointing to a real audiomap timestamp. Distinct from the general scene_plan because the scene.start_seconds is locked to beat_anchor.t_seconds within 50ms drift.",
+  "type": "object",
+  "required": ["version", "scenes", "metadata"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "style_playbook": {
+      "type": "string",
+      "description": "Name of the active style playbook; e.g. 'kinetic-anime', 'flat-motion-graphics'"
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "description", "start_seconds", "end_seconds", "beat_anchor"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^s[0-9]{3,}$" },
+          "type": {
+            "type": "string",
+            "enum": ["broll", "generated", "text_card", "transition", "freeze_frame"]
+          },
+          "description": { "type": "string", "minLength": 1 },
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "MUST equal beat_anchor.t_seconds within 50ms drift"
+          },
+          "end_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "MUST equal next scene's beat_anchor.t_seconds (cuts tile the music)"
+          },
+          "script_section_id": { "type": "string" },
+          "framing": {
+            "type": "string",
+            "enum": ["extreme_wide", "wide", "medium_wide", "medium", "medium_close", "close_up", "extreme_close_up", "over_shoulder", "insert", "establishing"]
+          },
+          "movement": {
+            "type": "string",
+            "enum": ["static", "ken_burns_in", "ken_burns_out", "pan_left", "pan_right", "zoom_in", "zoom_out"]
+          },
+          "transition_in": {
+            "type": "string",
+            "enum": ["hard_cut", "flash_white", "flash_black", "freeze_frame", "ken_burns"]
+          },
+          "transition_out": {
+            "type": "string",
+            "enum": ["hard_cut", "flash_white", "flash_black", "freeze_frame", "ken_burns"]
+          },
+          "overlay_notes": {
+            "type": "string",
+            "description": "Subtitle / title card text; null if no overlay"
+          },
+          "shot_intent": { "type": "string" },
+          "narrative_role": {
+            "type": "string",
+            "enum": ["establish_context", "build_tension", "deliver_payload", "transition", "emotional_beat", "call_to_action"]
+          },
+          "hero_moment": {
+            "type": "boolean",
+            "default": false,
+            "description": "True if this is a visual peak — first DOWNBEAT after a SURGE, a DROP, or the closing 4s"
+          },
+          "beat_anchor": {
+            "type": "object",
+            "description": "REQUIRED on every scene. Points to a real audiomap timestamp.",
+            "required": ["type", "t_seconds", "source"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["downbeat", "on_beat", "phrase_start", "phrase_end", "drop", "silence_start"]
+              },
+              "t_seconds": {
+                "type": "number",
+                "minimum": 0,
+                "description": "The exact timestamp the cut starts on; MUST be within 50ms of audiomap beats_sec / downbeats_sec / onsets_sec / key_moments.t"
+              },
+              "source": {
+                "type": "string",
+                "description": "Provenance; e.g. 'audiomap.beats_sec[42]' or 'audiomap.key_moments[3].t'"
+              }
+            },
+            "additionalProperties": false
+          },
+          "next_beat_anchor": {
+            "type": "object",
+            "description": "Anchor for the next scene (used to compute this scene's end_seconds). Optional but recommended.",
+            "properties": {
+              "type": { "type": "string" },
+              "t_seconds": { "type": "number" },
+              "source": { "type": "string" }
+            }
+          },
+          "required_assets": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["video_clip", "image", "image+ken_burns", "text_overlay"] }
+          },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["character", "scenery", "object", "abstract"] },
+              "identifiers": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Anime-recognizable labels: character name, location, costume, etc."
+              }
+            }
+          },
+          "drift_ms": {
+            "type": "number",
+            "description": "Computed: 1000 * abs(start_seconds - beat_anchor.t_seconds). Must be <= 50."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["audiomap_path", "motion_register"],
+      "properties": {
+        "audiomap_path": { "type": "string" },
+        "motion_register": {
+          "type": "string",
+          "enum": ["kinetic-burst", "phrase-led", "hybrid-burst"]
+        },
+        "hero_scene_count": { "type": "integer", "minimum": 2 },
+        "transition_vocabulary_used": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 4
+        },
+        "variety_check_passed": { "type": "boolean" },
+        "drift_check_passed": { "type": "boolean" },
+        "total_duration_seconds": { "type": "number" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

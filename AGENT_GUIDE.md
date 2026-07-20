@@ -257,6 +257,7 @@ If the folder has tracks, the proposal and asset stages should present them as o
 | `avatar-spokesperson` | Presenter-led avatar or lip-sync videos | production |
 | `localization-dub` | Subtitle, dub, and translated variants | beta |
 | `framework-smoke` | Test: minimal 2-stage smoke test | test |
+| `music-video-anime` | Beat-synced AMV/MAD/卡点视频; runtime locked to HyperFrames | beta |
 
 > **Beta pipelines** have not been fully audited. They work, but expect rough edges. Mention this when the user selects one.
 

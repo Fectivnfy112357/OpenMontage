@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/music_video_proposal_packet",
+  "title": "Music Video Anime Proposal Packet",
+  "description": "Proposal packet for a beat-synced anime music video. Carries the runtime lock (always 'hyperframes') and the asset route decision (video_downloader | ai_generation | hybrid). Distinct from the general proposal_packet schema because the runtime_lock field is mandatory here and the asset_route enum is different.",
+  "type": "object",
+  "required": ["version", "title", "concept_options", "production_plan", "runtime_lock_record", "asset_route_record"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "title": { "type": "string", "minLength": 1 },
+    "concept_options": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["name", "motion_register", "cut_density_per_minute"],
+        "properties": {
+          "name": { "type": "string" },
+          "motion_register": {
+            "type": "string",
+            "enum": ["kinetic-burst", "phrase-led", "hybrid-burst"]
+          },
+          "cut_density_per_minute": { "type": "integer", "minimum": 4 },
+          "motion_treatment": { "type": "string" },
+          "typography": {
+            "type": "string",
+            "enum": ["on-beat-karaoke", "sparse-on-impact", "none"]
+          },
+          "palette_direction": { "type": "string" },
+          "color_treatment": { "type": "string" },
+          "visual_language": { "type": "string" },
+          "asset_route_for_this_concept": {
+            "type": "string",
+            "enum": ["video_downloader", "ai_generation", "hybrid"]
+          }
+        }
+      }
+    },
+    "selected_concept": { "type": "string" },
+    "production_plan": {
+      "type": "object",
+      "required": ["render_runtime", "scene_count", "expected_total_runtime_seconds"],
+      "properties": {
+        "render_runtime": {
+          "type": "string",
+          "const": "hyperframes",
+          "description": "LOCKED by pipeline runtime_lock. The compose-director will reject any other value."
+        },
+        "asset_route": {
+          "type": "string",
+          "enum": ["video_downloader", "ai_generation", "hybrid"],
+          "description": "Top-level shortcut mirroring asset_route_record.chosen_route. Optional at this level if asset_route_record.chosen_route is set."
+        },
+        "beat_anchor_policy": {
+          "type": "object",
+          "properties": {
+            "analyzer": { "type": "string", "const": "tools/analysis/beat_anchor.py" },
+            "max_drift_ms": { "type": "integer", "const": 50 }
+          }
+        },
+        "scene_count": { "type": "integer", "minimum": 1 },
+        "expected_total_runtime_seconds": { "type": "number", "minimum": 0.1 },
+        "tool_plan": { "type": "object" },
+        "cost_estimate_usd": { "type": "number", "minimum": 0 },
+        "wall_time_estimate_minutes": { "type": "number", "minimum": 0 },
+        "target_resolution": {
+          "type": "string",
+          "enum": ["1920x1080", "1080x1920", "1080x1080", "3840x2160"]
+        },
+        "target_fps": { "type": "integer", "enum": [24, 25, 30, 60] }
+      }
+    },
+    "runtime_lock_record": {
+      "type": "object",
+      "description": "Mirror of pipeline runtime_lock for explicit recording in the proposal",
+      "required": ["locked_choice", "forbidden_runtimes", "exception_clause_invoked"],
+      "properties": {
+        "locked_choice": { "type": "string", "const": "hyperframes" },
+        "forbidden_runtimes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2
+        },
+        "exception_clause_invoked": {
+          "type": "boolean",
+          "description": "True if the runtime lock overrides AGENT_GUIDE's Present Both Composition Runtimes (HARD RULE). When true, decision_log must list ALL three runtimes in options_considered (see proposal-director.md)."
+        }
+      }
+    },
+    "asset_route_record": {
+      "type": "object",
+      "required": ["chosen_route", "requires_user_ack"],
+      "properties": {
+        "chosen_route": {
+          "type": "string",
+          "enum": ["video_downloader", "ai_generation", "hybrid"]
+        },
+        "user_opt_in_for_ai_generation": {
+          "type": "boolean",
+          "description": "True ONLY if the user has explicitly said '用 AI 生成 / AI 画 / AI 出图' in the conversation history."
+        },
+        "requires_user_ack": {
+          "type": "boolean",
+          "description": "True if any asset will be downloaded via ytsearch:<keywords> (no user-provided URL). The user must explicitly acknowledge this in the proposal before compose."
+        },
+        "ytsearch_query": {
+          "type": ["string", "null"],
+          "description": "The ytsearch:<keywords> query that will be used; null if user provided URLs directly."
+        }
+      }
+    },
+    "acknowledgments": {
+      "type": "array",
+      "description": "User acks collected at this stage (for third-party AMV footage, etc.)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": "string" },
+          "user_confirmed": { "type": "boolean" },
+          "confirmed_at": { "type": "string" }
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "approved_at": { "type": "string" },
+        "user_notes": { "type": "string" }
+      }
+    },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": false
+}

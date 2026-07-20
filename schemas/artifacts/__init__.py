@@ -31,6 +31,17 @@ ARTIFACT_NAMES = [
     "final_review",
     "character_qa_report",
     "video_analysis_brief",
+    # Music Video Anime pipeline — beat-synced AMV/MAD/卡点视频
+    # These names are pipeline-specific; they do not collide with the
+    # general-purpose short names above. Music-video-anime uses these as its
+    # produces[] in pipeline_defs/music-video-anime.yaml.
+    "music_video_brief",
+    "music_video_proposal_packet",
+    "music_video_script",
+    "music_video_scene_plan",
+    "music_video_asset_manifest",
+    "music_video_edit_decisions",
+    "music_video_render_report",
 ]
 
 

@@ -1,0 +1,312 @@
+name: music-video-anime
+version: "1.0"
+description: >
+  Beat-synced anime music video (AMV / MAD / 卡点视频) pipeline. The music track is
+  the spine: one beat-anchor analyzer reads the audio once, lays down a beat grid,
+  and every scene in the cut list MUST align its boundaries to a real downbeat or
+  on-beat anchor. Visual assets are sourced first via video_downloader (yt-dlp,
+  user-provided URLs or ytsearch:<keywords> for user-requested AMV footage) and
+  ONLY via agnes_image / agnes_video when the user has explicitly opted into
+  AI generation. The composition runtime is LOCKED to HyperFrames — its kinetic
+  typography templates and HTML/GSAP motion are the natural fit for frame-precise
+  beat cuts, and silent runtime swap to Remotion or FFmpeg is a CRITICAL governance
+  violation on this pipeline.
+category: music_video
+stability: beta
+default_checkpoint_policy: guided
+
+# Reference video input support — feed any anime clip as visual reference
+reference_input:
+  supported: true
+  analysis_depth: deep
+  analysis_tools:
+    - video_analyzer
+    - video_downloader
+    - scene_detect
+    - frame_sampler
+    - audio_energy
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/music-video-anime/executive-producer
+  budget_default_usd: 0.50
+  max_revisions_per_stage: 3
+  max_send_backs: 2
+  max_wall_time_minutes: 45
+
+extensions:
+  custom_scripts: true
+  custom_playbooks: true
+  custom_skills: true
+  custom_tools: false
+
+required_skills:
+  - pipelines/music-video-anime/executive-producer
+  - pipelines/music-video-anime/research-director
+  - pipelines/music-video-anime/proposal-director
+  - pipelines/music-video-anime/script-director
+  - pipelines/music-video-anime/scene-director
+  - pipelines/music-video-anime/asset-director
+  - pipelines/music-video-anime/edit-director
+  - pipelines/music-video-anime/compose-director
+  - pipelines/music-video-anime/publish-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+
+# Runtime LOCK: hyperframes is the only allowed render_runtime on this pipeline.
+# HyperFrames' kinetic typography templates and HTML/GSAP motion primitives are
+# the natural fit for frame-precise beat cuts. Remotion/FFmpeg silent swap is
+# forbidden — see proposal-director and compose-director for governance detail.
+# NOTE: AGENT_GUIDE's "Present Both Composition Runtimes (HARD RULE)" is
+# overridden by this lock because both alternatives are documented as forbidden
+# in the manifest. The exception is recorded in the decision_log at proposal
+# stage (see proposal-director.md "Runtime Selection — exception clause").
+runtime_lock:
+  render_runtime: hyperframes
+  allow_swap: false
+  rationale: "HyperFrames templates (kinetic typography, motion primitives) align with beat-cut AMV visual grammar; FFmpeg can only do hard-cut concat (no kinetic motion); Remotion's stock scene catalog does not express anime kinetic typography as naturally."
+  forbidden_runtimes:
+    - ffmpeg
+    - remotion
+
+compatible_playbooks:
+  recommended:
+    - flat-motion-graphics
+  also_works:
+    - clean-professional
+    - kinetic-anime  # custom playbook — see skills/pipelines/music-video-anime/playbook-notes.md if present
+  custom_allowed: true
+
+# Per-stage beat-anchor requirement: every scene beat MUST carry a beat_anchor
+# field that points to a real timestamp in the music (downbeat, on-beat, or
+# phrase boundary). The scene_director and edit_director enforce this via
+# schema validation and via a beat_anchor_check pre-compose hook.
+beat_anchor_policy:
+  required: true
+  analyzer: tools/analysis/beat_anchor.py
+  analyzer_backend: "npx hyperframes beats"
+  anchor_types_allowed:
+    - downbeat
+    - on_beat
+    - phrase_start
+    - phrase_end
+    - drop
+    - silence_start
+  max_drift_ms: 50   # cut boundaries must land within ±50ms of the chosen anchor
+
+# Artifacts produced by this pipeline use the music_video_* schema namespace
+# (see schemas/artifacts/music_video_*.schema.json and schemas/artifacts/__init__.py
+# ARTIFACT_NAMES). They are pipeline-specific — they do NOT collide with the
+# general-purpose short names used by other pipelines. decision_log and
+# publish_log are shared with the general registry.
+
+stages:
+  - name: research
+    skill: pipelines/music-video-anime/research-director
+    produces:
+      - music_video_brief
+    tools_available:
+      - web_search
+      - video_analyzer
+      - video_downloader
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Music track has been resolved (Step 1 in research-director.md) via option A/B/C
+      - If option C (ytsearch_artist_track), the user has explicitly acked the license at research stage
+      - Music file exists on disk and passes ffprobe duration check
+      - Anime theme has been characterized (visual motifs, character silhouettes, palette cues)
+      - At least 2-3 distinct visual approaches identified (palette, motion register, source-of-footage)
+      - Any third-party footage candidates have provenance URLs flagged for later user_ack
+    success_criteria:
+      - Schema-valid music_video_brief artifact (validated via schemas.artifacts.validate_artifact)
+      - music_video_brief.metadata.audiomap_path references a real audiomap.json on disk
+      - music_video_brief.metadata.anime_theme names the anime and source-of-truth
+      - music_track_source_license_consistency is satisfied (oneOf branches pass)
+      - If music_track_requires_user_ack is true, music_track_user_ack_obtained must be true
+
+  - name: proposal
+    skill: pipelines/music-video-anime/proposal-director
+    required_artifacts_in:
+      - music_video_brief
+    produces:
+      - music_video_proposal_packet
+      - decision_log
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - music_video_proposal_packet.production_plan.render_runtime must equal hyperframes (runtime_lock forbids swap)
+      - Asset route is explicit: video_downloader (default) OR agnes_image + agnes_video (only when user has opted in)
+      - If video_downloader without user-provided URL, the plan names the ytsearch keywords query and flags requires_user_ack=true
+      - Number of scenes is consistent with music length and beat grid density
+      - Cost estimate includes beat-anchor analysis cost (zero — local npx) and any AI generation cost
+    success_criteria:
+      - Schema-valid music_video_proposal_packet artifact
+      - music_video_proposal_packet.production_plan.render_runtime equals hyperframes
+      - music_video_proposal_packet.production_plan.asset_route is one of: video_downloader, ai_generation, hybrid
+      - If asset_route is video_downloader AND no user URL provided, requires_user_ack must be true
+      - At least 2 concept options with different motion registers
+      - decision_log contains a render_runtime_selection entry that lists all three runtimes and the locked_choice rationale
+
+  - name: script
+    skill: pipelines/music-video-anime/script-director
+    required_artifacts_in:
+      - music_video_proposal_packet
+    optional_artifacts_in:
+      - music_video_brief
+    produces:
+      - music_video_script
+    tools_available:
+      - beat_anchor
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Script is built around the BEAT MAP, not the other way around — every beat must land on a visual change
+      - Script has NO narration — it is a beat-anchored cut list + optional subtitle card text
+      - subtitle cards are minimal and on-beat (downbeat or on_beat anchor only)
+      - Music section boundaries (intro/verse/chorus/drop) are explicit
+    success_criteria:
+      - Schema-valid music_video_script artifact
+      - music_video_script.sections each carry beat_anchor (downbeat, on_beat, phrase_start, or drop)
+      - Total cut count is reasonable for target duration (typical: 1 cut per 0.5-4s for fast AMV, 2-6s for mood AMV)
+      - Lyrics / subtitle text references audiomap.onsets when relevant
+
+  - name: scene_plan
+    skill: pipelines/music-video-anime/scene-director
+    required_artifacts_in:
+      - music_video_script
+    optional_artifacts_in:
+      - music_video_proposal_packet
+    produces:
+      - music_video_scene_plan
+    tools_available:
+      - frame_sampler
+      - scene_detect
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Every scene carries a beat_anchor (REQUIRED — see pipeline beat_anchor_policy)
+      - Adjacent scenes do not share the same beat_anchor AND same visual category (variety check)
+      - Hero scenes are explicit (chorus drops, key moments, transition beats)
+      - Visual transitions are mostly hard-cut (default for AMV); sparingly use flash/zoom/whipe for accents
+      - Scene duration equals anchor_next minus anchor_this; no off-anchor holds
+    success_criteria:
+      - Schema-valid music_video_scene_plan artifact
+      - Every scene has a non-null beat_anchor
+      - Sum of (scene.end_seconds minus scene.start_seconds) is within 200ms of music duration
+      - Each scene's start_seconds is within 50ms of its beat_anchor.t_seconds
+
+  - name: assets
+    skill: pipelines/music-video-anime/asset-director
+    required_artifacts_in:
+      - music_video_scene_plan
+      - music_video_script
+    optional_artifacts_in:
+      - music_video_proposal_packet
+    produces:
+      - music_video_asset_manifest
+    tools_available:
+      - video_selector
+      - video_downloader
+      - agnes_image
+      - agnes_video
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Default asset route is video_downloader (per music_video_proposal_packet.production_plan.asset_route)
+      - If video_downloader without user-provided URL, every downloaded clip has license=user_requested AND requires_user_ack=true
+      - If agnes_image / agnes_video is used, the brief or proposal records the user-opt-in explicitly
+      - Every scene has exactly one matched asset (video clip OR generated image/animation)
+      - All asset files exist on disk and pass ffprobe / file-size sanity check
+    success_criteria:
+      - Schema-valid music_video_asset_manifest artifact
+      - All asset license fields are present and valid (one of: user_provided, user_requested, ai_generated)
+      - One asset per scene slot (1:1 mapping)
+      - No asset_id reused across two scenes
+      - requires_user_ack=true assets have been acknowledged in music_video_proposal_packet.acknowledgments OR new user confirmation is sought here
+
+  - name: edit
+    skill: pipelines/music-video-anime/edit-director
+    required_artifacts_in:
+      - music_video_scene_plan
+      - music_video_asset_manifest
+    optional_artifacts_in:
+      - music_video_script
+    produces:
+      - music_video_edit_decisions
+    tools_available:
+      - video_stitch
+      - video_trimmer
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - music_video_edit_decisions.render_runtime must equal hyperframes (matches proposal — no silent swap)
+      - Every cut has a beat_anchor (REQUIRED)
+      - Cut duration equals next_anchor.t minus this_anchor.t (no over/under-hold)
+      - Adjacent cuts use the same visual treatment variety check (no two consecutive fade cuts)
+      - Cut count × typical cut length covers at least 95% of music duration (no large dead zones)
+    success_criteria:
+      - Schema-valid music_video_edit_decisions artifact
+      - music_video_edit_decisions.render_runtime equals hyperframes
+      - Every cut has beat_anchor within 50ms of its at_seconds
+      - Total cut duration within 200ms of music duration
+
+  - name: compose
+    skill: pipelines/music-video-anime/compose-director
+    required_artifacts_in:
+      - music_video_edit_decisions
+      - music_video_asset_manifest
+    optional_artifacts_in:
+      - music_video_scene_plan
+    produces:
+      - music_video_render_report
+    required_tools:
+      - hyperframes_compose
+    optional_tools:
+      - audio_mixer
+    tools_available:
+      - hyperframes_compose
+      - audio_mixer
+      - subtitle_gen
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Output was rendered via hyperframes_compose (NOT ffmpeg, NOT remotion — runtime_lock forbids)
+      - hyperframes lint and validate both passed before render
+      - Output duration matches music duration within 200ms
+      - Audio bed matches the music track used in research / script; no silent gap or drift
+      - At least 3 frame samples were inspected at downbeats to verify beat-sync visual change
+      - audio_mixer used only when source audio needs normalization (rare for music tracks)
+    success_criteria:
+      - Schema-valid music_video_render_report artifact
+      - music_video_render_report.render_runtime equals hyperframes
+      - music_video_render_report.music_track matches the analyzed track (path or hash)
+      - music_video_render_report.runtime_swap_detected is false
+      - music_video_render_report.silent_fallback_used is false
+      - music_video_render_report.audio_post_processing.music_mixed is true OR explicit_skip_with_reason is set
+      - Output MP4 file exists and passes ffprobe validation
+      - music_video_render_report.beat_sync_verification.verification_passed is true
+
+  - name: publish
+    skill: pipelines/music-video-anime/publish-director
+    required_artifacts_in:
+      - music_video_render_report
+    optional_artifacts_in:
+      - music_video_proposal_packet
+      - music_video_script
+    produces:
+      - publish_log
+    tools_available:
+      - export_bundle
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Hero export and any derivative exports are clearly labeled
+      - Metadata includes music_track metadata (artist, title, license) and anime_theme
+      - Poster-frame or thumbnail concept is coherent with the beat map
+      - The publish_log records any third-party footage user_ack chain end-to-end
+    success_criteria:
+      - Schema-valid publish_log artifact
+      - Export package contains video and metadata outputs
+      - publish_log.metadata.provenance_chain documents every user_provided, user_requested, and ai_generated asset back to its source
