@@ -803,6 +803,36 @@ class HyperFramesCompose(BaseTool):
             normalized.append(entry)
         return normalized
 
+    @staticmethod
+    def _coerce_cuts(cuts: list[dict]) -> list[dict]:
+        """Normalize cut fields to HyperFrames' internal canonical shape.
+
+        Accepts both forms found in OpenMontage today:
+          - HyperFrames internal API: cuts[].{id, source, at_seconds, ...}
+          - music_video_edit_decisions schema:
+                cuts[].{cut_id, asset_id, asset_path, at_seconds, ...}
+
+        The schema marks ``additionalProperties: false`` on cuts[], so
+        agents cannot inject a ``source`` field without breaking schema
+        validation. This adapter derives ``source`` from ``asset_path``
+        (preferred) or falls back to ``asset_id`` (resolved via the asset
+        lookup in _resolve_and_stage_assets). Original fields are preserved
+        so a JSON dump still satisfies the schema.
+
+        M-10 fix (2026-07-21). Mirrors ``_coerce_asset_entries`` semantics.
+        """
+        normalized: list[dict] = []
+        for c in cuts or []:
+            entry = dict(c)  # preserve all original fields (schema stays happy)
+            entry.setdefault("id", entry.get("cut_id"))
+            if not entry.get("source"):
+                if entry.get("asset_path"):
+                    entry["source"] = entry["asset_path"]
+                elif entry.get("asset_id"):
+                    entry["source"] = entry["asset_id"]  # resolved later via asset_lookup
+            normalized.append(entry)
+        return normalized
+
     def _resolve_and_stage_assets(
         self,
         cuts: list[dict],
@@ -815,7 +845,13 @@ class HyperFramesCompose(BaseTool):
         every asset must live inside the workspace tree. Copying is simpler
         (and portable) than symlinking, at the cost of disk space — these
         are regenerable under `projects/`.
+
+        Cuts are normalized via ``_coerce_cuts`` so schema-form inputs
+        (``asset_path``) reach the resolution loop below as ``source`` —
+        without this, every music-video-anime cut would fall through to the
+        text-card placeholder at line ~1166. M-10 fix.
         """
+        cuts = self._coerce_cuts(cuts)
         assets = self._coerce_asset_entries(assets)
         asset_lookup = {a["id"]: a for a in assets if "id" in a}
         assets_dir = workspace / "assets"

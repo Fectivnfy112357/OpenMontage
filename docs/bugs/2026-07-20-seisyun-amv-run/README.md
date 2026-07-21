@@ -18,7 +18,7 @@
 | ID | Severity | Layer | Verified by GitHub Issue | Title |
 |---|---|---|---|---|
 | O-1 | P0 | Platform (beat_anchor) | ⚠️ Indirect (Windows family, #396) | `subprocess.run(["npx",...])` fails on Windows with WinError 2 |
-| ~~O-3~~ | ~~P2~~ | n/a | n/a | **REMOVED 2026-07-21**: was incorrectly attributed to video_downloader.py. Tool already uses `max_duration_seconds` metadata check (line 197), not `--max-duration` CLI flag. Agent's own wrapper script used obsolete flag — not a tool bug. |
+| O-3 | P1 | Platform (checkpoint) | ❌ None — recommend filing | **`CANONICAL_STAGE_ARTIFACTS` hardcoded; music-video-anime stages rejected**. Re-opened 2026-07-21: see `GAP_REPORT_2026-07-21.md` O-3/M-1. The 2026-07-21 "REMOVED" attribution below was a misclassification — the yt-dlp `--max-duration` flag note is unrelated to this checkpoint namespace bug. **Fixed 2026-07-21**: `lib/checkpoint.py` now consults `PIPELINE_STAGE_ARTIFACT_OVERRIDES` keyed on `(pipeline_type, stage)`; `music-video-anime` emits no longer raise `CheckpointValidationError`. |
 | O-4 | P1 | Platform (hyperframes family) | ✅ #306 | HyperFrames tool/schema field key mismatches |
 | O-5 | P0 | Platform (hyperframes family) | ✅ #306 + #359 + #360 | `_generate_index_html` emits empty timeline; silent fallback; relative path bug |
 | ~~O-6~~ | ~~P1~~ | n/a | ~~✅ #360~~ | **REMOVED 2026-07-21**: PR #374 MERGED in commit `33c7000`. `tools/video/hyperframes_compose.py` line 657 now uses `.expanduser().resolve()`. Issue #360 still OPEN but fix is in main. |
@@ -29,7 +29,10 @@
 | M-4 | P2 | Pipeline skill | ❌ None — recommend filing | `asset-director` missing clip re-encode step |
 | M-5 | P1 | Pipeline + Platform (shared) | ⚠️ Mixed | `compose-director` assumes tool generates timeline |
 | M-6 | P2 | Pipeline skill | ❌ None — recommend filing | `proposal-director` ignores governance schema coupling |
-| M-7 | P2 | Pipeline scripts | ❌ None — recommend filing | Missing `lib/pipelines/music_video_*.py` helpers |
+| M-7 | P2 | Pipeline scripts | ✅ Fixed 2026-07-21 | `lib/__init__.py` now re-exports `music_video_adapter`/`music_video_ids`/`music_video_drift` so `from lib import music_video_adapter` works. Agents no longer need inline `tools_*.py` adapter shims. |
+| M-10 | P1 | Platform (hyperframes) | ❌ None — recommend filing | **NEW 2026-07-21**: `cut.source` required by hyperframes but not in `music_video_edit_decisions` schema. Re-opened gap on top of O-4. **Fixed 2026-07-21**: `HyperFramesCompose._coerce_cuts` derives `source` from `asset_path` (or `asset_id`) before resolution. |
+| M-11 | P2 | Pipeline | ❌ None — recommend filing | **NEW 2026-07-21**: no style-consistency audit between `scene_plan` and `asset_manifest`. Out of scope for this fix window — see `GAP_REPORT_2026-07-21.md`. |
+| A-1 | P1 | Process | n/a (process-level) | **NEW 2026-07-21**: `HF_VIDEO_COVERAGE_THRESHOLD=0` triggers 96% memory peak. **Documented 2026-07-21**: warning added to `compose-director.md` "Common Pitfalls". Out-of-repo default value cannot be changed from this codebase. |
 | M-8 | P3 | Pipeline schema | ❌ None — recommend filing | `music_video_brief` schema incomplete vs director doc |
 | M-9 | P2 | Pipeline structure | ❌ None — recommend filing | EP (executive-producer) stage not implemented as explicit stage |
 
@@ -43,8 +46,11 @@
 
 | ID | Original issue | Fix verified | Source |
 |---|---|---|---|
-| O-3 | yt-dlp `--max-duration` obsolete | `tools/analysis/video_downloader.py` line 197 uses metadata duration check; agent wrapper bug, not tool bug | (correction) |
+| O-3 (correction) | The 2026-07-21 "REMOVED" line was itself misclassified — it referred to a yt-dlp flag note, not the actual O-3 checkpoint namespace bug. The real O-3 (re-opened via `GAP_REPORT_2026-07-21.md`) is now fixed via `lib/checkpoint.py:PIPELINE_STAGE_ARTIFACT_OVERRIDES`. See bug triage row above. | n/a | this report |
 | O-6 | relative `output_path` two-base resolution | `tools/video/hyperframes_compose.py` line 657 now `.expanduser().resolve()` | PR #374 MERGED in commit `33c7000` |
+| M-7 | `lib/pipelines/music_video_*.py` helpers not importable via `from lib import …` | `lib/__init__.py` re-exports the 3 helpers | focused-fix 2026-07-21 |
+| M-10 | `cut.source` required by hyperframes but schema-compliant edits use `cut.asset_path` | `tools/video/hyperframes_compose.py:_coerce_cuts` derives `source` from `asset_path`/`asset_id` | focused-fix 2026-07-21 |
+| A-1 | `HF_VIDEO_COVERAGE_THRESHOLD=0` triggers 96% memory peak with no warning | `compose-director.md` "Common Pitfalls" now documents the cost | focused-fix 2026-07-21 |
 
 ## Filing Plan
 

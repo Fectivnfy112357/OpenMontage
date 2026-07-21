@@ -39,6 +39,25 @@ CANONICAL_STAGE_ARTIFACTS = {
     "publish": "publish_log",
 }
 
+# Per-pipeline overrides for stages whose canonical artifact uses a
+# pipeline-specific namespace (e.g. music-video-anime emits music_video_*
+# instead of the generic brief / script / asset_manifest / ...). When
+# _validate_artifacts_for_stage resolves a required artifact, it consults
+# this map first and falls back to CANONICAL_STAGE_ARTIFACTS. Adding a new
+# pipeline is a one-line entry here, no schema changes needed.
+#
+# Format: {(pipeline_type, stage): canonical_artifact_name}
+PIPELINE_STAGE_ARTIFACT_OVERRIDES: dict[tuple[str, str], str] = {
+    ("music-video-anime", "research"): "music_video_brief",
+    ("music-video-anime", "proposal"): "music_video_proposal_packet",
+    ("music-video-anime", "script"): "music_video_script",
+    ("music-video-anime", "scene_plan"): "music_video_scene_plan",
+    ("music-video-anime", "assets"): "music_video_asset_manifest",
+    ("music-video-anime", "edit"): "music_video_edit_decisions",
+    ("music-video-anime", "compose"): "music_video_render_report",
+    # publish stays on the generic publish_log — both registries accept it
+}
+
 # Additional artifacts that may be produced alongside canonical ones.
 # These are not stage-defining but are required by governance contracts.
 SUPPLEMENTARY_ARTIFACTS = {
@@ -105,13 +124,24 @@ def _validate_artifacts_for_stage(
     stage: str,
     status: str,
     artifacts: dict[str, Any],
+    pipeline_type: Optional[str] = None,
 ) -> None:
     # Valid stages come from the pipeline manifest (get_pipeline_stages), which
     # can declare stages beyond the 9 canonical ones (e.g. character-animation's
     # `character_design`/`rig_plan`, screen-demo's `real_capture`). Those have no
     # canonical artifact, so look it up defensively — a missing entry means the
     # stage simply has no required artifact, not a crash.
-    required_artifact = CANONICAL_STAGE_ARTIFACTS.get(stage)
+    #
+    # Per-pipeline overrides win over the generic map so a pipeline with its
+    # own artifact namespace (music-video-anime's music_video_*) validates
+    # without monkey-patching at the call site.
+    required_artifact: Optional[str] = None
+    if pipeline_type:
+        required_artifact = PIPELINE_STAGE_ARTIFACT_OVERRIDES.get(
+            (pipeline_type, stage)
+        )
+    if required_artifact is None:
+        required_artifact = CANONICAL_STAGE_ARTIFACTS.get(stage)
     if (
         required_artifact is not None
         and status in {"completed", "awaiting_human"}
@@ -163,7 +193,7 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
     if not isinstance(artifacts, dict):
         raise CheckpointValidationError("Checkpoint artifacts must be a dictionary")
 
-    _validate_artifacts_for_stage(stage, status, artifacts)
+    _validate_artifacts_for_stage(stage, status, artifacts, pipeline_type)
 
     try:
         jsonschema.validate(instance=checkpoint, schema=_load_checkpoint_schema())

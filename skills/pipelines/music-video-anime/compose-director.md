@@ -296,6 +296,19 @@ If a documented swap happened, add:
 - Declaring success without beat sync verification. Visual frame inspection at downbeats is mandatory.
 - Forgetting to record `runtime_swap_detected: false`. The reviewer checks this field for governance violations.
 
+### ⚠️ HyperFrames env var: `HF_VIDEO_COVERAGE_THRESHOLD` (memory cost)
+
+The HyperFrames runtime exposes `HF_VIDEO_COVERAGE_THRESHOLD` to gate frame extraction per clip. **Setting it to `0` disables the gate and forces the renderer to extract frames from every clip — including <1s clips where 95% coverage is structurally unreachable.**
+
+On a 32 GB Windows machine with ~107 short AMV clips (<1 s each), this has been observed to push Chrome headless to **96% RAM utilization for ~2 minutes**, ending in OOM (exit 137) or rendering only after RAM pressure subsides. The agent reading this doc tends to assume "disable gate = more clips render" without accounting for the cost.
+
+**Preferred alternatives before reaching for `HF_VIDEO_COVERAGE_THRESHOLD=0`:**
+- Re-encode source clips with `ffmpeg -g 30 -keyint_min 30` so the per-clip I-frame density lets the renderer hit the coverage gate naturally (see `asset-director.md` for the re-encode step).
+- Split the cut list into chunks and render each chunk separately rather than disabling the gate globally.
+- Use `quality="draft"` to halve per-frame memory before changing the env var.
+
+If you must set `HF_VIDEO_COVERAGE_THRESHOLD=0`, document the choice in `music_video_render_report.metadata.coverage_threshold_override_reason` so reviewers can trace the trade-off. A-1 fix (2026-07-21).
+
 ---
 
 ## Gate Reminder (Binding)
