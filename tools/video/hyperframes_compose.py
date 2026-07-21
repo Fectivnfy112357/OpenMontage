@@ -480,16 +480,20 @@ class HyperFramesCompose(BaseTool):
         assets_dir = workspace / "assets"
         assets_dir.mkdir(exist_ok=True)
 
-        # Resolve asset IDs → file paths + copy into workspace.
+        # O-4 fix: accept both `assets` (tool internal API) and `entries`
+        # (music_video_asset_manifest schema).
+        _assets_list = asset_manifest.get("assets")
+        if _assets_list is None:
+            _assets_list = asset_manifest.get("entries", [])
         resolved_cuts, asset_copies = self._resolve_and_stage_assets(
             edit_decisions.get("cuts", []),
-            asset_manifest.get("assets", []),
+            _assets_list,
             workspace,
         )
 
         audio_refs = self._resolve_audio_refs(
             edit_decisions.get("audio", {}),
-            asset_manifest.get("assets", []),
+            _assets_list,
             workspace,
         )
 
@@ -781,6 +785,24 @@ class HyperFramesCompose(BaseTool):
             return 0.0
         return max(float(c.get("out_seconds", 0) or 0) for c in cuts)
 
+    @staticmethod
+    def _coerce_asset_entries(assets: list[dict]) -> list[dict]:
+        """Normalize asset entries to internal canonical shape.
+
+        Accepts both forms found in OpenMontage today:
+          - HyperFrames internal API: assets[].{id, path, license, ...}
+          - music_video_asset_manifest schema: assets[].{asset_id, path, ...}
+
+        Returns a list where each entry has an `id` key (sourced from either
+        `id` or `asset_id`) and all original keys preserved. O-4 fix.
+        """
+        normalized: list[dict] = []
+        for a in assets or []:
+            entry = dict(a)  # preserve all fields
+            entry.setdefault("id", entry.get("asset_id"))
+            normalized.append(entry)
+        return normalized
+
     def _resolve_and_stage_assets(
         self,
         cuts: list[dict],
@@ -794,6 +816,7 @@ class HyperFramesCompose(BaseTool):
         (and portable) than symlinking, at the cost of disk space — these
         are regenerable under `projects/`.
         """
+        assets = self._coerce_asset_entries(assets)
         asset_lookup = {a["id"]: a for a in assets if "id" in a}
         assets_dir = workspace / "assets"
         copies: list[dict[str, str]] = []
@@ -820,6 +843,7 @@ class HyperFramesCompose(BaseTool):
         workspace: Path,
     ) -> dict[str, Any]:
         """Resolve narration / music asset IDs and stage them."""
+        assets = self._coerce_asset_entries(assets)
         asset_lookup = {a["id"]: a for a in assets if "id" in a}
         assets_dir = workspace / "assets"
         out: dict[str, Any] = {"narration": [], "music": None}
@@ -961,11 +985,38 @@ class HyperFramesCompose(BaseTool):
 
         clip_html: list[str] = []
         entrance_tweens: list[str] = []
+        # O-5 fix: build a one-shot opacity-switch GSAP timeline from each cut's
+        # at_seconds / duration_seconds so the rendered MP4 honors beat-anchored
+        # timing rather than the static "no tweens" placeholder. Cuts without
+        # at_seconds fall back to entrance-tween behavior used by text/images.
+        has_timed_video = False
+        timed_visibility_tweens: list[str] = []
         for i, cut in enumerate(cuts):
             html, tween = self._cut_to_html(i, cut, width, height)
             clip_html.append(html)
-            if tween:
+            at_s = cut.get("at_seconds")
+            dur_s = cut.get("duration_seconds")
+            if at_s is not None:
+                at_s = float(at_s)
+                dur_s = float(dur_s) if dur_s is not None else 0.0
+                # Inline visibility tween using opacity — keeps elements direct
+                # children of #root (required by HyperFrames lint).
+                cut_id = f"cut-{i}"
+                timed_visibility_tweens.append(
+                    f"gsap.set('#{cut_id}', {{opacity: 0}}); "
+                    f"tl.to('#{cut_id}', {{opacity: 1, duration: 0}}, {self._f(at_s)}); "
+                    f"tl.to('#{cut_id}', {{opacity: 0, duration: 0}}, {self._f(at_s + max(dur_s, 0.05))});"
+                )
+                has_timed_video = True
+            elif tween:
                 entrance_tweens.append(tween)
+
+        # O-5 fix: prefer timed-visibility tweens over entrance tweens when cuts
+        # are beat-anchored; both blocks together are valid but redundant.
+        if has_timed_video:
+            tween_block = "\n        ".join(timed_visibility_tweens)
+        else:
+            tween_block = "\n        ".join(entrance_tweens) if entrance_tweens else "// no tweens"
 
         audio_html: list[str] = []
         for j, nar in enumerate(audio_refs.get("narration") or []):
@@ -989,8 +1040,6 @@ class HyperFramesCompose(BaseTool):
                 f'data-track-index="3" src="{self._escape_attr(src)}" '
                 f'data-volume="{self._f(music["volume"])}"></audio>'
             )
-
-        tween_block = "\n        ".join(entrance_tweens) if entrance_tweens else "// no tweens"
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1036,9 +1085,19 @@ class HyperFramesCompose(BaseTool):
     ) -> tuple[str, Optional[str]]:
         """Render one cut + its entrance tween. Returns (html, tween or None)."""
         cut_id = f"cut-{index}"
-        in_s = float(cut.get("in_seconds", 0) or 0)
-        out_s = float(cut.get("out_seconds", 0) or 0)
-        duration = max(0.1, out_s - in_s)
+        # O-5 fix: accept at_seconds/duration_seconds (music_video_edit_decisions
+        # schema) in addition to legacy in_seconds/out_seconds.
+        at_s = cut.get("at_seconds")
+        dur_s = cut.get("duration_seconds")
+        if at_s is not None:
+            in_s = float(at_s)
+        else:
+            in_s = float(cut.get("in_seconds", 0) or 0)
+        if dur_s is not None:
+            duration = max(0.1, float(dur_s))
+        else:
+            out_s = float(cut.get("out_seconds", 0) or 0)
+            duration = max(0.1, out_s - in_s)
 
         source = cut.get("source") or ""
         cut_type = (cut.get("type") or "").lower()

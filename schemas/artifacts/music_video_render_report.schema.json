@@ -9,8 +9,8 @@
     "version": { "type": "string", "const": "1.0" },
     "render_runtime": {
       "type": "string",
-      "const": "hyperframes",
-      "description": "MUST be 'hyperframes'. compose-director rejects other values per pipeline runtime_lock."
+      "enum": ["hyperframes", "ffmpeg", "remotion"],
+      "description": "LOCKED to hyperframes by pipeline runtime_lock. ffmpeg / remotion allowed ONLY when accompanied by runtime_swap.exception_clause_invoked=true."
     },
     "output_path": {
       "type": "string",
@@ -100,13 +100,25 @@
     },
     "runtime_swap_detected": {
       "type": "boolean",
-      "const": false,
-      "description": "Governance check: if true, the render was done with a runtime other than the locked hyperframes. compose-director rejects."
+      "description": "True iff render_runtime != hyperframes. Must be accompanied by runtime_swap.exception_clause_invoked=true and runtime_swap.user_authorized_at."
     },
     "silent_fallback_used": {
       "type": "boolean",
-      "const": false,
-      "description": "Governance check: if true, the renderer fell back to a degraded path without user approval."
+      "description": "True iff runtime was swapped WITHOUT user authorization. NEVER true when user explicitly approved."
+    },
+    "runtime_swap": {
+      "type": "object",
+      "description": "Record of runtime downgrade. REQUIRED iff runtime_swap_detected=true. Documents the exception clause invocation and user authorization.",
+      "required": ["exception_clause_invoked", "from_runtime", "to_runtime"],
+      "properties": {
+        "exception_clause_invoked": { "type": "boolean" },
+        "user_authorized_at": { "type": ["string", "null"], "format": "date-time" },
+        "from_runtime": { "type": "string" },
+        "to_runtime": { "type": "string" },
+        "reason": { "type": "string" },
+        "hyperframes_attempted_versions": { "type": "array", "items": { "type": "string" } },
+        "hyperframes_failure_mode": { "type": "string" }
+      }
     },
     "metadata": {
       "type": "object",

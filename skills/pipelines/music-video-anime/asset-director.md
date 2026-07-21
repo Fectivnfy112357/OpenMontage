@@ -156,6 +156,46 @@ For each acquired asset, run a quick sanity check:
 
 Failed assets get a retry pass with a different query / seed. After 2 retries, log the failure and surface to the user.
 
+### 5a. Clip Re-Encoding For Dense Keyframes (M-4 fix)
+
+After `video_trimmer` (Step 4) produces the per-scene trimmed clip, **re-encode every
+trimmed clip** with `-g 30 -keyint_min 30` so HyperFrames' frame extraction has a
+seek-safe GOP. Default `ffmpeg` output has a GOP of 5–10s; a trimmed 0.5–1s cut
+may have only one keyframe or none, which causes HyperFrames render to abort with:
+
+```
+Video "cut-070" has sparse keyframes (max interval: 4.8s). This causes seek
+failures and frame freezing.
+Extracting video frames ... captured 14 of expected 15 frames (coverage 93.3%,
+threshold 95.0%). aborting render to prevent shipping a wrong MP4.
+```
+
+Re-encode step (insert between Step 4 video_trimmer output and Step 5 sanity check):
+
+```python
+import subprocess
+cmd = [
+    "ffmpeg", "-y", "-i", str(trimmed_clip_path),
+    "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+    "-r", "30",
+    "-g", "30", "-keyint_min", "30",   # one keyframe per second
+    "-movflags", "+faststart",
+    "-c:a", "copy",
+    str(reencoded_clip_path),
+]
+subprocess.run(cmd, check=True)
+```
+
+Point `asset_manifest.entries[].path` at the re-encoded file, not the trimmer
+output. Failed assets get a retry pass with a different query / seed. After 2
+retries, log the failure and surface to the user.
+
+**For very short clips (< 1s)** where the 95% coverage threshold is structurally
+unreachable, set `HF_VIDEO_COVERAGE_THRESHOLD=0` in the compose-stage render env.
+Document this in the asset entry `provenance.notes` field.
+
+See `docs/bugs/2026-07-20-seisyun-amv-run/M-4-asset-director-missing-reencode.md`.
+
 ### 6. Mapping Assets To Scenes (1:1)
 
 Each scene MUST get exactly one primary asset. Mapping rules:

@@ -28,9 +28,10 @@ If `edit_decisions.render_runtime != "hyperframes"`, STOP. Surface the manifest 
 | Prior artifact | `music_video_edit_decisions` | The cut list to render |
 | Prior artifact | `music_video_asset_manifest` | Asset paths referenced by cuts |
 | Prior artifact | `music_video_proposal_packet` | runtime_lock confirmation |
-| Tool | `tools/video/hyperframes_compose.py` | The renderer |
+| Tool | `tools/video/hyperframes_compose.py` | The renderer (auto-emits beat-anchored timeline as of M-5 fix) |
 | Tool | `tools/audio/audio_mixer.py` | Optional audio bed mixing |
 | Tool | `tools/analysis/beat_anchor.py` | Beat sync verification post-render |
+| Layer 3 | `.agents/skills/hyperframes-core/references/sub-compositions.md` | Required reading: media-must-be-direct-child-of-#root rule |
 
 ## Process
 
@@ -98,6 +99,23 @@ Use `hyperframes_compose.execute()` with:
     "render_quality": "draft" | "production"   # start with draft for fast iteration
 }
 ```
+
+**M-5 fix note (2026-07-21)**: as of this writing, `tools/video/hyperframes_compose.py`
+**generates the proper beat-anchored timeline automatically** from
+`edit_decisions.cuts[].{at_seconds, duration_seconds}` — it emits
+`<video class="clip">` elements with `data-start`/`data-duration` attributes
+plus a GSAP main timeline that switches each cut's `opacity` at the boundary.
+No agent-side rewriting of `workspace/index.html` is required.
+
+**O-4 fix note (2026-07-21)**: `hyperframes_compose` now accepts both
+`asset_manifest["assets"][]` (tool's internal API) and
+`asset_manifest["entries"][]` (music_video_asset_manifest schema, keyed by
+`asset_id`), normalizing internally via `_coerce_asset_entries`. Schema-compliant
+inputs work without an adapter shim.
+
+If the generated `workspace/index.html` does NOT contain a non-empty GSAP main
+timeline referencing each cut's `at_seconds`, STOP and surface a hyperframes
+bug — do not silently paper over it with a hand-written timeline.
 
 ### 3. Run Lint And Validate Before Render
 
@@ -187,6 +205,15 @@ Optional — only needed if the raw render has audio issues.
 
 ### 7. Record The Render Report
 
+The `music_video_render_report` schema (`schemas/artifacts/music_video_render_report.schema.json`)
+validates this artifact. **M-3 fix (2026-07-21)**: `render_runtime` is now an
+enum with `["hyperframes", "ffmpeg", "remotion"]` (no longer `const hyperframes`).
+If `render_runtime != "hyperframes"`, you MUST populate the `runtime_swap` object
+with `exception_clause_invoked=true` AND `user_authorized_at=<ISO timestamp>`
+otherwise validation fails. The runtime lock forbids swap without authorization,
+so the `runtime_swap` field is the canonical record of the exception clause
+invocation (per `pipeline_defs/music-video-anime.yaml:runtime_lock` lines 64-71).
+
 ```json
 {
   "version": "1.0",
@@ -231,6 +258,20 @@ Optional — only needed if the raw render has audio issues.
     "cut_count_rendered": <int>,
     "hero_scene_count": <int>
   }
+}
+```
+
+If a documented swap happened, add:
+
+```json
+"runtime_swap": {
+  "exception_clause_invoked": true,
+  "from_runtime": "hyperframes",
+  "to_runtime": "ffmpeg",
+  "user_authorized_at": "<ISO timestamp when user approved the swap>",
+  "reason": "<why hyperframes failed>",
+  "hyperframes_attempted_versions": ["vN.N.N"],
+  "hyperframes_failure_mode": "<error message excerpt>"
 }
 ```
 

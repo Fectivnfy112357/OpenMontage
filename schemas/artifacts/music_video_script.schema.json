@@ -24,7 +24,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "text", "start_seconds", "end_seconds", "music_section_type", "beat_anchor"],
+        "required": ["id", "text", "start_seconds", "end_seconds", "music_section_type", "beat_anchor", "target_cut_count"],
         "properties": {
           "id": { "type": "string" },
           "label": { "type": "string" },

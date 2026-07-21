@@ -87,8 +87,8 @@
             "additionalProperties": false
           },
           "next_beat_anchor": {
-            "type": "object",
-            "description": "Anchor for the next scene (used to compute this scene's end_seconds). Optional but recommended.",
+            "type": ["object", "null"],
+            "description": "Anchor for the next scene (used to compute this scene's end_seconds). Optional. M-2 fix: set null on the LAST scene; pre-fix behavior required a phrase_end anchor at audiomap.audio.duration_sec.",
             "properties": {
               "type": { "type": "string" },
               "t_seconds": { "type": "number" },

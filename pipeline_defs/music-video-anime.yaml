@@ -311,3 +311,33 @@ stages:
       - "Schema-valid publish_log artifact"
       - "Export package contains video and metadata outputs"
       - "publish_log.metadata.provenance_chain documents every user_provided, user_requested, and ai_generated asset back to its source"
+
+  # M-9 fix (2026-07-21): explicit executive-producer stage. Previously
+  # orchestration.mode=executive-producer pointed at the EP skill but no stage
+  # definition invoked it, leaving EP behavior unreproducible. The stage below
+  # runs after publish, emits an ep_review artifact (budget/time/revisions),
+  # and gates on its own success criteria. Set human_approval_default=false
+  # so it auto-finalizes unless explicitly intervened.
+  - name: executive_producer
+    skill: pipelines/music-video-anime/executive-producer
+    required_artifacts_in:
+      - music_video_render_report
+      - publish_log
+    optional_artifacts_in:
+      - music_video_proposal_packet
+    produces:
+      - decision_log
+      - ep_review
+    checkpoint_required: true
+    human_approval_default: false
+    tools_available:
+      - checkpoint
+    review_focus:
+      - "Budget consumption within $0.50 default"
+      - "Wall time within 45 minutes"
+      - "Revision count within 3 per stage"
+      - "Send-back count within 2"
+    success_criteria:
+      - "Schema-valid ep_review artifact"
+      - "All stages within budget/time/revision limits"
+      - "decision_log.ep_decision entry recorded"

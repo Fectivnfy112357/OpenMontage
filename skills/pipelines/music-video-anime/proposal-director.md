@@ -31,6 +31,16 @@ Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)", you woul
 
 This records the runtime as a binding decision (not a choice) and gives downstream reviewers the rationale for why the standard "present both" rule was overridden. Per AGENT_GUIDE.md → "Decision Communication Contract", you MUST still **announce before execution** that the runtime is locked. The lock prevents runtime drift through the pipeline but does not exempt you from transparent communication to the user.
 
+**M-6 governance coupling note (2026-07-21)**: the `render_runtime: "hyperframes"` lock you set
+in this proposal stage is **enforced again** at compose stage by the
+`music_video_render_report` schema (`schemas/artifacts/music_video_render_report.schema.json`).
+If hyperframes genuinely cannot render (rare), the M-3 fix added a `runtime_swap` object as
+the canonical exception record — you must capture `user_authorized_at` and `reason` there.
+Read `skills/pipelines/music-video-anime/compose-director.md` Step 7 BEFORE promising the
+user that a fallback path exists. A documented fallback is allowed; silent fallback is a
+governance violation. The decision_log entry you write here is an input but not a substitute
+for the render_report.runtime_swap field.
+
 ## Asset Route Decision (USER-DEFINED RULE)
 
 The user has explicitly defined the asset routing rule:

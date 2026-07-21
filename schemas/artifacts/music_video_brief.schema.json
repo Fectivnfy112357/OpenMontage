@@ -159,7 +159,13 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "URLs to visual reference stills / key art / AMV references"
-        }
+        },
+        "music_track_search_query": { "type": "string", "description": "ytsearch:<keywords> query used to find the track (M-8)." },
+        "music_track_youtube_video_id": { "type": "string" },
+        "music_track_uploader": { "type": "string" },
+        "music_track_publisher": { "type": "string" },
+        "music_track_sha256": { "type": "string", "description": "sha256 of the music file for provenance." },
+        "global_user_ack_statement": { "type": "string" }
       }
     }
   },

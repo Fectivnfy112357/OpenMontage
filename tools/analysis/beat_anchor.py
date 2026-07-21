@@ -254,9 +254,21 @@ class BeatAnchor(BaseTool):
         with tempfile.TemporaryDirectory(prefix="beat_anchor_") as tmp:
             tmp_path = Path(tmp)
             try:
+                # Resolve npx cross-platform: Windows uses `npx.cmd` which subprocess
+                # does not auto-resolve even when on PATH (Python invokes CreateProcess
+                # directly without consulting PATHEXT). shutil.which returns the
+                # exact filename that exists on this machine.
+                # O-1 fix (per docs/bugs/2026-07-20-seisyun-amv-run/O-1).
+                import shutil as _shutil
+                npx_bin = _shutil.which("npx") or _shutil.which("npx.cmd")
+                if not npx_bin:
+                    return ToolResult(
+                        success=False,
+                        error="npx not found on PATH — install Node.js (which provides npx).",
+                    )
                 # Init blank project
                 init = subprocess.run(
-                    ["npx", "--yes", "hyperframes", "init", str(tmp_path),
+                    [npx_bin, "--yes", "hyperframes", "init", str(tmp_path),
                      "--non-interactive", "--example=blank"],
                     capture_output=True, text=True, timeout=120,
                 )
@@ -289,9 +301,20 @@ class BeatAnchor(BaseTool):
                     encoding="utf-8",
                 )
 
-                # Run beats
+                # Resolve npx cross-platform: Windows uses `npx.cmd` which subprocess
+                # does not auto-resolve even when on PATH (Python invokes CreateProcess
+                # directly without consulting PATHEXT). shutil.which returns the
+                # exact filename that exists on this machine.
+                # O-1 fix (per docs/bugs/2026-07-20-seisyun-amv-run/O-1).
+                import shutil as _shutil
+                npx_bin = _shutil.which("npx") or _shutil.which("npx.cmd")
+                if not npx_bin:
+                    return ToolResult(
+                        success=False,
+                        error="npx not found on PATH — install Node.js (which provides npx).",
+                    )
                 beats_run = subprocess.run(
-                    ["npx", "--yes", "hyperframes", "beats", str(tmp_path)],
+                    [npx_bin, "--yes", "hyperframes", "beats", str(tmp_path)],
                     capture_output=True, text=True, timeout=timeout,
                 )
                 if beats_run.returncode != 0:

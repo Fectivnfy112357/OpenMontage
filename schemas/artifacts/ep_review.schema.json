@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/ep_review",
+  "title": "Executive Producer Review",
+  "description": "Per-run budget / time / revision accounting emitted by the music-video-anime executive_producer stage (M-9 fix 2026-07-21). Records whether the pipeline stayed within orchestration limits declared in pipeline_defs/music-video-anime.yaml:orchestration.",
+  "type": "object",
+  "required": ["version", "project_id", "budget_consumed_usd", "wall_time_minutes", "revisions_per_stage", "send_backs", "within_limits", "decision"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "project_id": {
+      "type": "string",
+      "description": "OpenMontage project identifier (projects/<project_id>/)."
+    },
+    "budget_consumed_usd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total USD spent across all paid tool calls in the run. Local/free tools contribute 0."
+    },
+    "budget_limit_usd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Per-pipeline budget_default_usd from the manifest orchestration block. Typically 0.50."
+    },
+    "wall_time_minutes": {
+      "type": "number",
+      "minimum": 0,
+      "description": "End-to-end wall time from research start to publish completion."
+    },
+    "wall_time_limit_minutes": {
+      "type": "number",
+      "minimum": 0,
+      "description": "max_wall_time_minutes from orchestration. Typically 45."
+    },
+    "revisions_per_stage": {
+      "type": "object",
+      "description": "Map of stage name to revision count. Each value must be <= max_revisions_per_stage.",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "max_revisions_per_stage": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "max_revisions_per_stage from orchestration. Typically 3."
+    },
+    "send_backs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total send-backs across the entire run (one stage forcibly re-run by reviewer)."
+    },
+    "max_send_backs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "max_send_backs from orchestration. Typically 2."
+    },
+    "within_limits": {
+      "type": "boolean",
+      "description": "True iff every limit (budget / wall_time / revisions / send_backs) is respected AND all stage success_criteria pass."
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["approved", "approved_with_notes", "rejected"],
+      "description": "EP verdict. approved_with_notes records over-budget / over-time runs that completed anyway; rejected halts further automation and surfaces to the user."
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Free-text explanation when decision != approved."
+    },
+    "decision_log_ep_decision_id": {
+      "type": ["string", "null"],
+      "description": "Pointer into decision_log for the ep_decision entry recorded by the EP stage. Format: decision_log.id value."
+    }
+  },
+  "additionalProperties": false
+}
