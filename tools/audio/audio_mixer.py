@@ -213,6 +213,39 @@ class AudioMixer(BaseTool):
         target = max(-40.0, min(0.0, target))
         return f"[{in_label}]loudnorm=I={target}:LRA=11:TP=-1.5[{out_label}]"
 
+    def _track_filters(self, track: dict[str, Any]) -> list[str]:
+        """Build per-track filters on the source timeline before scheduling it.
+
+        ``afade=t=out`` defaults to ``st=0``. Applying it after ``adelay``
+        therefore fades the delay silence instead of the source audio, leaving
+        a delayed track silent by the time it starts. Fade source samples first
+        and add the timeline delay last so both fades follow the track itself.
+        """
+        filters = []
+        volume = track.get("volume", 1.0)
+        delay_ms = int(track.get("start_seconds", 0) * 1000)
+        fade_in = track.get("fade_in_seconds", 0)
+        fade_out = track.get("fade_out_seconds", 0)
+
+        if volume != 1.0:
+            filters.append(f"volume={volume}")
+        if fade_in > 0:
+            filters.append(f"afade=t=in:d={fade_in}")
+        if fade_out > 0:
+            duration_cmd = [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "csv=p=0",
+                track["path"],
+            ]
+            duration = float(self.run_command(duration_cmd).stdout.strip().split("\n")[0])
+            fade_start = max(0.0, duration - float(fade_out))
+            filters.append(f"afade=t=out:st={fade_start}:d={fade_out}")
+        if delay_ms > 0:
+            filters.append(f"adelay={delay_ms}|{delay_ms}")
+
+        return filters
+
     def execute(self, inputs: dict[str, Any]) -> ToolResult:
         operation = inputs["operation"]
         start = time.time()
@@ -256,20 +289,7 @@ class AudioMixer(BaseTool):
 
         for i, track in enumerate(tracks):
             input_args.extend(["-i", track["path"]])
-            volume = track.get("volume", 1.0)
-            delay_ms = int(track.get("start_seconds", 0) * 1000)
-            fade_in = track.get("fade_in_seconds", 0)
-            fade_out = track.get("fade_out_seconds", 0)
-
-            filters = []
-            if volume != 1.0:
-                filters.append(f"volume={volume}")
-            if delay_ms > 0:
-                filters.append(f"adelay={delay_ms}|{delay_ms}")
-            if fade_in > 0:
-                filters.append(f"afade=t=in:d={fade_in}")
-            if fade_out > 0:
-                filters.append(f"afade=t=out:d={fade_out}")
+            filters = self._track_filters(track)
 
             if filters:
                 filter_chain = ",".join(filters)
@@ -500,20 +520,7 @@ class AudioMixer(BaseTool):
 
         for i, track in enumerate(all_tracks):
             input_args.extend(["-i", track["path"]])
-            volume = track.get("volume", 1.0)
-            delay_ms = int(track.get("start_seconds", 0) * 1000)
-            fade_in = track.get("fade_in_seconds", 0)
-            fade_out = track.get("fade_out_seconds", 0)
-
-            filters = []
-            if volume != 1.0:
-                filters.append(f"volume={volume}")
-            if delay_ms > 0:
-                filters.append(f"adelay={delay_ms}|{delay_ms}")
-            if fade_in > 0:
-                filters.append(f"afade=t=in:d={fade_in}")
-            if fade_out > 0:
-                filters.append(f"afade=t=out:d={fade_out}")
+            filters = self._track_filters(track)
 
             if filters:
                 filter_chain = ",".join(filters)

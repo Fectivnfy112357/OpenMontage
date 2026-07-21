@@ -186,6 +186,7 @@ class TestGoogleMusic:
         assert info["tier"] == "generate"
         assert info["capability"] == "music_generation"
         assert info["provider"] == "google"
+        assert info["agent_skills"] == ["lyria"]
 
     def test_duration_validation(self):
         tool = GoogleMusic()

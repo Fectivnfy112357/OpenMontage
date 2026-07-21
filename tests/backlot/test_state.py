@@ -91,6 +91,9 @@ class TestBoardState:
         assert sc2["visual"]["exists"] is False  # missing file flagged
         script_stage = next(x for x in s["stages"] if x["name"] == "script")
         assert script_stage["status"] == "completed"
+        assert script_stage["produces"] == ["script"]
+        proposal_stage = next(x for x in s["stages"] if x["name"] == "proposal")
+        assert proposal_stage["produces"] == ["proposal_packet", "decision_log"]
 
     def test_gate_skip_detection(self, projects_root):
         p = _make_project(projects_root, "sneaky")

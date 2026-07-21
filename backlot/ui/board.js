@@ -169,6 +169,36 @@ const STAGE_ARTIFACTS = {
   publish: ["publish_log"],
 };
 
+function artifactNamesForStage(st) {
+  const declared = Array.isArray(st.produces) ? st.produces : [];
+  const fallback = STAGE_ARTIFACTS[st.name] || [];
+  return [...new Set([...declared, ...fallback].filter(Boolean))];
+}
+
+function reviewMetrics(review) {
+  const nested = review && review.summary && typeof review.summary === "object"
+    ? review.summary : {};
+  return {
+    critical: Number((review && review.critical) ?? nested.critical ?? 0),
+    suggestions: Number((review && review.suggestions) ?? nested.suggestions ?? 0),
+    nitpicks: Number((review && review.nitpicks) ?? nested.nitpicks ?? 0),
+  };
+}
+
+function reviewSummaryText(review) {
+  if (!review) return "";
+  if (typeof review.summary === "string") return review.summary;
+  const nested = review.summary && typeof review.summary === "object" ? review.summary : {};
+  const counts = reviewMetrics(review);
+  return [
+    review.decision,
+    `${counts.critical} critical`,
+    `${counts.suggestions} suggestion${counts.suggestions === 1 ? "" : "s"}`,
+    nested.review_focus_met ? `review focus ${nested.review_focus_met}` : null,
+    nested.schema_validation,
+  ].filter(Boolean).join(" · ");
+}
+
 function renderDrawer(s) {
   if (!selectedStage) return null;
   const st = s.stages.find((x) => x.name === selectedStage);
@@ -177,15 +207,17 @@ function renderDrawer(s) {
   const body = el("div", { class: "drawer-body" });
 
   if (st.review) {
+    const metrics = reviewMetrics(st.review);
+    const summary = reviewSummaryText(st.review);
     body.append(el("div", { class: "findings", style: "margin-bottom:12px" },
-      el("span", { class: `f ${st.review.critical ? "crit" : ""}` }, `${st.review.critical ?? 0} critical`),
-      el("span", { class: `f ${st.review.suggestions ? "sugg" : ""}` }, `${st.review.suggestions ?? 0} suggestions`),
-      el("span", { class: "f" }, `${st.review.nitpicks ?? 0} nitpicks`),
-      typeof st.review.summary === "string" ? el("span", { style: "font-size:calc(11.5px * var(--fs-scale));color:var(--text-2);margin-left:8px" }, st.review.summary) : null,
+      el("span", { class: `f ${metrics.critical ? "crit" : ""}` }, `${metrics.critical} critical`),
+      el("span", { class: `f ${metrics.suggestions ? "sugg" : ""}` }, `${metrics.suggestions} suggestions`),
+      el("span", { class: "f" }, `${metrics.nitpicks} nitpicks`),
+      summary ? el("span", { style: "font-size:calc(11.5px * var(--fs-scale));color:var(--text-2);margin-left:8px" }, summary) : null,
     ));
   }
 
-  const names = STAGE_ARTIFACTS[st.name] || [];
+  const names = artifactNamesForStage(st);
   let shown = false;
   for (const name of names) {
     const artifact = s.artifacts[name];
@@ -243,10 +275,17 @@ function renderScriptCard(s) {
   const script = s.artifacts.script;
   if (!script) return null;
   const scriptStage = s.stages.find((x) => x.name === "script");
-  const approved = scriptStage && scriptStage.status === "completed";
+  const status = scriptStage ? scriptStage.status : "unknown";
+  const stamp = status === "completed"
+    ? el("span", { class: "script-status script-approved" }, "APPROVED")
+    : status === "awaiting_human"
+      ? el("span", { class: "script-status script-pending" }, "PENDING APPROVAL")
+      : status === "in_progress"
+        ? el("span", { class: "script-status script-draft" }, "DRAFTING")
+        : null;
 
   const card = el("div", { class: "script-card script-preview", title: "Click to expand full script", onclick: openScriptModal },
-    approved ? el("span", { class: "script-approved" }, "APPROVED") : null,
+    stamp,
     el("div", { class: "sp-title" }, script.title || s.title),
     el("div", { class: "sp-meta" },
       `script · ${fmtDuration(script.total_duration_seconds)} · ${(script.sections || []).length} sections`),
@@ -254,6 +293,238 @@ function renderScriptCard(s) {
     el("span", { class: "sp-expand" }, "⤢ EXPAND SCRIPT"),
   );
   return card;
+}
+
+function humanize(value) {
+  return String(value || "artifact").replaceAll("_", " ");
+}
+
+function shortText(value, limit = 180) {
+  const text = String(value || "").trim();
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
+function reviewFact(label, value) {
+  if (value == null || value === "") return null;
+  return el("div", { class: "approval-fact" },
+    el("span", {}, label),
+    el("b", {}, value),
+  );
+}
+
+function reviewFacts(items) {
+  const facts = items.filter(Boolean);
+  return facts.length ? el("div", { class: "approval-facts" }, facts) : null;
+}
+
+function titledItems(items, selectedId = null) {
+  const rows = (items || []).slice(0, 4).map((item, index) => {
+    if (item == null) return null;
+    if (typeof item !== "object") {
+      return el("li", {}, shortText(item));
+    }
+    const id = item.id || item.concept_id || item.option_id;
+    const title = item.title || item.name || item.display_name || item.label || id || item.path || item.platform || item.description || `Item ${index + 1}`;
+    const detail = item.hook || item.why_this_works || item.summary || item.description || item.silhouette_notes;
+    return el("li", { class: id && id === selectedId ? "selected" : "" },
+      el("div", { class: "approval-item-title" }, shortText(title, 100),
+        id && id === selectedId ? el("span", { class: "approval-selected" }, "SELECTED") : null),
+      detail && detail !== title ? el("p", {}, shortText(detail)) : null,
+    );
+  }).filter(Boolean);
+  return rows.length ? el("ul", { class: "approval-items" }, rows) : null;
+}
+
+function genericArtifactSummary(artifact) {
+  const facts = [];
+  const items = [];
+  for (const [key, value] of Object.entries(artifact || {})) {
+    if (["version", "decision_log_ref"].includes(key)) continue;
+    if (["string", "number", "boolean"].includes(typeof value)) {
+      facts.push(reviewFact(humanize(key), shortText(value, 90)));
+    } else if (Array.isArray(value)) {
+      facts.push(reviewFact(humanize(key), `${value.length} item${value.length === 1 ? "" : "s"}`));
+      if (!items.length && value.length) items.push(titledItems(value));
+    }
+    if (facts.length >= 6) break;
+  }
+  return [reviewFacts(facts), ...items].filter(Boolean);
+}
+
+function artifactReviewContent(name, artifact) {
+  if (name === "brief") {
+    return [
+      artifact.hook ? el("p", { class: "approval-lead" }, artifact.hook) : null,
+      reviewFacts([
+        reviewFact("platform", artifact.target_platform),
+        reviewFact("duration", artifact.target_duration_seconds != null ? fmtDuration(artifact.target_duration_seconds) : null),
+        reviewFact("tone", artifact.tone),
+        reviewFact("style", artifact.style),
+      ]),
+      titledItems(artifact.key_points),
+    ].filter(Boolean);
+  }
+  if (name === "proposal_packet") {
+    const selected = (artifact.selected_concept || {}).concept_id;
+    const plan = artifact.production_plan || {};
+    const cost = artifact.cost_estimate || {};
+    return [
+      reviewFacts([
+        reviewFact("runtime", plan.render_runtime),
+        reviewFact("pipeline", plan.pipeline),
+        reviewFact("estimated cost", cost.total_estimated_usd != null ? fmtMoney(cost.total_estimated_usd) : null),
+        reviewFact("concepts", Array.isArray(artifact.concept_options) ? artifact.concept_options.length : null),
+      ]),
+      titledItems(artifact.concept_options, selected),
+      (artifact.selected_concept || {}).rationale
+        ? el("p", { class: "approval-rationale" },
+          el("b", {}, "WHY THIS CONCEPT  "), shortText(artifact.selected_concept.rationale))
+        : null,
+    ].filter(Boolean);
+  }
+  if (name === "research_brief") {
+    return [
+      artifact.topic ? el("p", { class: "approval-lead" }, artifact.topic) : null,
+      reviewFacts([
+        reviewFact("sources", Array.isArray(artifact.sources) ? artifact.sources.length : null),
+        reviewFact("data points", Array.isArray(artifact.data_points) ? artifact.data_points.length : null),
+        reviewFact("angles", Array.isArray(artifact.angles_discovered) ? artifact.angles_discovered.length : null),
+      ]),
+      titledItems(artifact.angles_discovered),
+    ].filter(Boolean);
+  }
+  if (name === "script") {
+    const first = (artifact.sections || [])[0];
+    return [
+      reviewFacts([
+        reviewFact("duration", fmtDuration(artifact.total_duration_seconds)),
+        reviewFact("sections", (artifact.sections || []).length),
+      ]),
+      first && first.text ? el("p", { class: "approval-lead" }, shortText(first.text, 220)) : null,
+      el("p", { class: "approval-guidance" }, "The complete script preview is shown directly below."),
+    ].filter(Boolean);
+  }
+  if (name === "scene_plan") {
+    const scenes = artifact.scenes || [];
+    const end = scenes.reduce((max, scene) => Math.max(max, Number(scene.end_seconds) || 0), 0);
+    return [
+      reviewFacts([
+        reviewFact("scenes", scenes.length),
+        reviewFact("duration", end ? fmtDuration(end) : null),
+      ]),
+      titledItems(scenes),
+      el("p", { class: "approval-guidance" }, "Review timing and shot coverage in the storyboard below."),
+    ].filter(Boolean);
+  }
+  if (name === "asset_manifest") {
+    const assets = artifact.assets || [];
+    const types = [...new Set(assets.map((asset) => asset.type).filter(Boolean))];
+    return [
+      reviewFacts([
+        reviewFact("assets", assets.length),
+        reviewFact("types", types.join(", ")),
+        reviewFact("generation cost", artifact.total_cost_usd != null ? fmtMoney(artifact.total_cost_usd) : null),
+      ]),
+      titledItems(assets),
+      el("p", { class: "approval-guidance" }, "Inspect every generated take in the filmstrip below before approving compose."),
+    ].filter(Boolean);
+  }
+  if (name === "edit_decisions") {
+    return [
+      reviewFacts([
+        reviewFact("cuts", Array.isArray(artifact.cuts) ? artifact.cuts.length : null),
+        reviewFact("runtime", artifact.render_runtime || (artifact.metadata || {}).render_runtime),
+      ]),
+      titledItems(artifact.cuts),
+    ].filter(Boolean);
+  }
+  if (name === "render_report") {
+    return [
+      reviewFacts([
+        reviewFact("outputs", Array.isArray(artifact.outputs) ? artifact.outputs.length : null),
+        reviewFact("duration", artifact.duration_seconds != null ? fmtDuration(artifact.duration_seconds) : null),
+      ]),
+      titledItems(artifact.outputs),
+    ].filter(Boolean);
+  }
+  if (name === "publish_log") {
+    return [
+      reviewFacts([reviewFact("destinations", Array.isArray(artifact.entries) ? artifact.entries.length : null)]),
+      titledItems((artifact.entries || []).map((entry) => ({
+        title: entry.platform || entry.destination || "Publish destination",
+        description: [entry.status, entry.url].filter(Boolean).join(" · "),
+      }))),
+    ].filter(Boolean);
+  }
+  return genericArtifactSummary(artifact);
+}
+
+function artifactReviewTitle(name, artifact, s) {
+  if (name === "proposal_packet") {
+    const selected = (artifact.selected_concept || {}).concept_id;
+    const concept = (artifact.concept_options || []).find((item) => item.id === selected);
+    return (concept && concept.title) || "Production proposal";
+  }
+  if (name === "research_brief") return artifact.topic || "Research brief";
+  if (name === "scene_plan") return "Scene plan";
+  if (name === "asset_manifest") return "Generated assets";
+  if (name === "edit_decisions") return "Edit decisions";
+  if (name === "render_report") return "Render report";
+  if (name === "publish_log") return "Publish plan";
+  return artifact.title || artifact.name || s.title;
+}
+
+function renderApprovalReview(s) {
+  const awaiting = s.stages.find((item) => item.status === "awaiting_human");
+  if (!awaiting) return null;
+
+  const names = artifactNamesForStage(awaiting);
+  const entries = names
+    .filter((name) => name !== "decision_log")
+    .map((name) => [name, s.artifacts[name]])
+    .filter(([, artifact]) => artifact && typeof artifact === "object");
+  const stageIndex = s.stages.findIndex((item) => item.name === awaiting.name);
+  const nextStage = stageIndex >= 0 ? s.stages[stageIndex + 1] : null;
+  const review = awaiting.review || {};
+  const reviewSummary = reviewSummaryText(review);
+
+  const artifacts = entries.map(([name, artifact]) => el("article", {
+    class: "approval-artifact",
+    "data-artifact": name,
+  },
+    el("div", { class: "approval-artifact-kicker" }, humanize(name)),
+    el("h2", {}, artifactReviewTitle(name, artifact, s)),
+    ...artifactReviewContent(name, artifact),
+  ));
+
+  if (!artifacts.length) {
+    artifacts.push(el("div", { class: "approval-missing", role: "alert" },
+      el("b", {}, "Nothing reviewable was found. "),
+      names.length
+        ? `The ${awaiting.name} checkpoint declares ${names.map(humanize).join(", ")}, but Backlot could not load it.`
+        : `The ${awaiting.name} checkpoint does not declare an artifact.`,
+    ));
+  }
+
+  return el("section", { class: "approval-review", "data-stage": awaiting.name },
+    el("div", { class: "approval-review-head" },
+      el("div", {},
+        el("div", { class: "approval-eyebrow" }, "REVIEW GATE"),
+        el("h2", {}, `${humanize(awaiting.name)} is ready for your review`),
+        el("p", {}, "Review the artifact here, then reply in chat to approve it or request changes."),
+      ),
+      el("span", { class: "approval-status" }, "PENDING APPROVAL"),
+    ),
+    reviewSummary ? el("div", { class: "approval-review-note" },
+      el("b", {}, "SELF-REVIEW  "), shortText(reviewSummary, 260)) : null,
+    el("div", { class: "approval-artifacts" }, artifacts),
+    el("div", { class: "approval-review-foot" },
+      el("span", {}, nextStage
+        ? `Approval unlocks ${humanize(nextStage.name)}.`
+        : "This is the final approval gate."),
+      el("button", { type: "button", onclick: () => toggleDrawer(awaiting.name) }, "OPEN FULL ARTIFACT"),
+    ),
+  );
 }
 
 function openScriptModal() {
@@ -799,6 +1070,8 @@ function render() {
   if (noState) app.append(noState);
 
   const main = el("div", { class: "main-col" });
+  const approvalReview = renderApprovalReview(s);
+  if (approvalReview) main.append(approvalReview);
   const script = renderScriptCard(s);
   if (script) main.append(script);
   const aside = el("aside", {});
@@ -813,11 +1086,12 @@ function render() {
   const found = renderFoundMedia(s);
   const renders = renderRenders(s);
 
-  if (script || decisions || activity) {
+  if (approvalReview || script || decisions || activity) {
     for (const section of [storyboard, found, renders]) {
       if (section) main.append(section);
     }
-    app.append(el("div", { class: "board" }, main, aside));
+    const hasAside = Boolean(decisions || activity);
+    app.append(el("div", { class: `board${hasAside ? "" : " solo"}` }, main, hasAside ? aside : null));
   } else {
     for (const section of [storyboard, found, renders]) {
       if (section) app.append(section);
@@ -830,6 +1104,9 @@ function render() {
 function normalize(s) {
   s.pipeline = s.pipeline || { pipeline_type: "unknown", stages: [], known: false };
   s.stages = Array.isArray(s.stages) ? s.stages : [];
+  for (const stage of s.stages) {
+    stage.produces = Array.isArray(stage.produces) ? stage.produces : [];
+  }
   s.artifacts = s.artifacts || {};
   s.media = s.media || {};
   s.media.renders = Array.isArray(s.media.renders) ? s.media.renders : [];

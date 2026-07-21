@@ -44,7 +44,7 @@ class GoogleMusic(BaseTool):
         "  - Or set GOOGLE_APPLICATION_CREDENTIALS for Vertex AI service account."
     )
     fallback_tools = ["music_gen"]
-    agent_skills = ["music"]
+    agent_skills = ["lyria"]
 
     capabilities = [
         "generate_background_music",

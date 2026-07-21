@@ -353,6 +353,40 @@ def test_hyperframes_render_requires_workspace():
     assert ("workspace" in err) or ("runtime" in err) or ("hyperframes" in err)
 
 
+def test_hyperframes_render_resolves_relative_output_path_once(tmp_path, monkeypatch):
+    """A successful CLI render must not be reported missing for a relative path."""
+    import subprocess
+
+    from tools.base_tool import ToolResult
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    tool = HyperFramesCompose()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tool, "_runtime_check", lambda: {"runtime_available": True})
+    monkeypatch.setattr(tool, "_scaffold", lambda inputs: ToolResult(success=True, data={}))
+    monkeypatch.setattr(tool, "_lint", lambda inputs: ToolResult(success=True, data={}))
+    monkeypatch.setattr(tool, "_validate", lambda inputs: ToolResult(success=True, data={}))
+
+    def run_render(args, *, cwd, timeout, check):
+        output = Path(args[args.index("--output") + 1])
+        rendered_output = output if output.is_absolute() else cwd / output
+        rendered_output.parent.mkdir(parents=True, exist_ok=True)
+        rendered_output.write_bytes(b"rendered")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(tool, "_run_hf", run_render)
+
+    result = tool._render(
+        {"workspace_path": str(workspace), "output_path": "renders/final.mp4"}
+    )
+
+    expected = tmp_path / "renders" / "final.mp4"
+    assert result.success, result.error
+    assert result.data["output"] == str(expected)
+    assert result.artifacts == [str(expected)]
+
+
 # ------------------------------------------------------------------
 # video_compose runtime routing
 # ------------------------------------------------------------------
