@@ -309,6 +309,29 @@ On a 32 GB Windows machine with ~107 short AMV clips (<1 s each), this has been 
 
 If you must set `HF_VIDEO_COVERAGE_THRESHOLD=0`, document the choice in `music_video_render_report.metadata.coverage_threshold_override_reason` so reviewers can trace the trade-off. A-1 fix (2026-07-21).
 
+### Fallback Trigger Flow (when HyperFrames cannot satisfy the render)
+
+HyperFrames is the **default and preferred** renderer on this pipeline. The fallback path (`render_runtime=ffmpeg` with `runtime_swap` populated) is **only** triggered when HyperFrames physically cannot produce a usable output. Lightweight fix 2026-07-21.
+
+**Detection** — `hyperframes_compose._render()` post-validates the npx render against `lib.runtime_swap_suggester.detect_runtime_swap()` and downgrades `success=True` to `success=False` with `data.steps.post_render.suggested_runtime_swap` populated when ANY of these symptoms fire:
+
+1. `beat_sync_verification.verification_passed == false` (visual change absent at downbeats)
+2. `frames_sampled / total_cuts < 0.5` (more than half the cuts yielded no frame samples — O-5 empty-timeline)
+3. `cut_count_rendered / total_cuts < 0.5` (HyperFrames dropped most cuts)
+4. npx stderr matches one of the empty-timeline markers (`no clips`, `empty timeline`, `0 clips`, `frames: 0`)
+
+**Agent flow** — on `success=False` with `suggested_runtime_swap`:
+
+1. Present the suggestion to the user verbatim. Include `hyperframes_failure_mode`, the `detection_signals`, and the proposed `to_runtime`.
+2. If the user authorizes: set `runtime_swap.exception_clause_invoked=true` and `runtime_swap.user_authorized_at=<ISO>`, then re-render via `tools.video.video_stitch._stitch_crossfade` / `_stitch_fadeblack` (the ffmpeg+xfade path already exists in `tools/video/video_stitch.py:609-657`).
+3. If the user declines: STOP. Surface the unresolved render to the user per AGENT_GUIDE → "Escalate Blockers Explicitly". Do NOT silently switch runtimes.
+4. Append a `decision_log` entry (`category: "render_runtime_swap"`) regardless of approve/decline — the audit trail must record the option was offered.
+
+**What this is NOT**:
+- NOT auto-execution. The agent never falls back without explicit user authorization.
+- NOT silent. `silent_fallback_used` MUST stay `false` even when `runtime_swap_detected=true` — see render_report schema line 107.
+- NOT a replacement for HyperFrames. Future fixes to upstream HyperFrames (better video-element seeking, native xfade plugin) should retire this fallback path.
+
 ---
 
 ## Gate Reminder (Binding)

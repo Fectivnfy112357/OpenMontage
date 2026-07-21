@@ -739,6 +739,72 @@ class HyperFramesCompose(BaseTool):
                 data={"steps": steps},
             )
 
+        # Post-render O-5 detection. HyperFrames can exit 0 and still produce
+        # an empty-timeline / beat-sync-failed output (the O-5 family of
+        # bugs). Inspect npx stderr + the rendered file metadata via
+        # ffprobe-light, and consult runtime_swap_suggester. If it suggests
+        # a fallback, attach the suggestion to steps and DOWNGRADE success
+        # to False so the caller (compose-director) surfaces the suggestion
+        # to the user instead of marking the run complete. silent_fallback_used
+        # remains False — we DETECT + SUGGEST only, never auto-execute.
+        # Lightweight scope (2026-07-21).
+        try:
+            from lib.runtime_swap_suggester import attach_suggestion_to_render_report
+        except ImportError:
+            attach_suggestion_to_render_report = None  # type: ignore
+
+        npx_stderr = (proc.stderr or "")
+        # Frame-count heuristic from the rendered MP4 (best-effort; if
+        # ffprobe isn't available we still rely on stderr scan).
+        frames_rendered = self._estimate_rendered_frames(output_path)
+        total_cuts = len((inputs.get("edit_decisions") or {}).get("cuts", []) or [])
+        cut_count_rendered = (
+            int(frames_rendered["approx_unique_frames"])
+            if frames_rendered.get("approx_unique_frames") is not None
+            else None
+        )
+
+        # Build a minimal beat_sync_verification-shaped dict from signals we
+        # have on hand; if the caller already populated it, prefer theirs.
+        beat_sync = inputs.get("beat_sync_verification") or {
+            "verification_passed": None,
+            "frames_sampled": cut_count_rendered,
+            "max_drift_ms_observed": None,
+        }
+
+        suggested_swap: Optional[dict[str, Any]] = None
+        if attach_suggestion_to_render_report is not None:
+            # Build a stub render_report for the suggestion helper; we never
+            # write it back — we only consume the suggestion.
+            stub_rr = {"metadata": {"total_cuts": total_cuts}}
+            attach_suggestion_to_render_report(
+                stub_rr,
+                beat_sync_verification=beat_sync,
+                cut_count_rendered=cut_count_rendered,
+                npx_stderr=npx_stderr,
+            )
+            suggested_swap = stub_rr.get("runtime_swap")
+
+        steps["post_render"] = {
+            "frames_rendered_estimate": frames_rendered,
+            "npx_stderr_tail": npx_stderr[-2000:],
+            "suggested_runtime_swap": suggested_swap,
+        }
+
+        if suggested_swap is not None:
+            return ToolResult(
+                success=False,
+                error=(
+                    "HyperFrames render produced symptoms consistent with "
+                    f"O-5 (failure_mode={suggested_swap['hyperframes_failure_mode']}). "
+                    "Runtime_swap fallback suggested — see "
+                    "steps.post_render.suggested_runtime_swap. Present this "
+                    "to the user; do NOT auto-execute the fallback. See "
+                    "compose-director.md 'Fallback Trigger Flow'."
+                ),
+                data={"steps": steps},
+            )
+
         return ToolResult(
             success=True,
             data={
@@ -784,6 +850,75 @@ class HyperFramesCompose(BaseTool):
         if not cuts:
             return 0.0
         return max(float(c.get("out_seconds", 0) or 0) for c in cuts)
+
+    @staticmethod
+    def _estimate_rendered_frames(mp4_path: Path) -> dict[str, Any]:
+        """Best-effort frame count from a rendered MP4 via ffprobe.
+
+        Returns a dict with optional fields::
+
+            {
+              "approx_total_frames": int | None,
+              "approx_unique_frames": int | None,
+              "duration_seconds": float | None,
+              "ffprobe_error": str | None,
+            }
+
+        Best-effort: if ffprobe is missing or fails, the relevant fields
+        are None. The downstream ``runtime_swap_suggester`` treats None
+        values as "no signal" and only fires on explicit stderr / count
+        signals. Lightweight fix (2026-07-21).
+        """
+        result: dict[str, Any] = {
+            "approx_total_frames": None,
+            "approx_unique_frames": None,
+            "duration_seconds": None,
+            "ffprobe_error": None,
+        }
+        if not mp4_path.exists():
+            result["ffprobe_error"] = "file_missing"
+            return result
+        try:
+            import json
+            import subprocess
+            proc = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=nb_read_frames,duration",
+                    "-of", "json",
+                    str(mp4_path),
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            if proc.returncode != 0:
+                result["ffprobe_error"] = (proc.stderr or "").strip()[:300] or "ffprobe_failed"
+                return result
+            data = json.loads(proc.stdout or "{}")
+            streams = data.get("streams") or []
+            if streams:
+                s = streams[0]
+                result["approx_total_frames"] = s.get("nb_read_frames")
+                dur = s.get("duration")
+                if dur is not None:
+                    try:
+                        result["duration_seconds"] = float(dur)
+                    except (TypeError, ValueError):
+                        pass
+            # No reliable way to count unique frames without sampling; we
+            # approximate using total / 2 only as a coarse fallback for the
+            # suggester's ratio check. False-negative-safe.
+            if result["approx_total_frames"]:
+                result["approx_unique_frames"] = max(
+                    1, int(int(result["approx_total_frames"]) / 2)
+                )
+        except FileNotFoundError:
+            result["ffprobe_error"] = "ffprobe_not_installed"
+        except subprocess.TimeoutExpired:
+            result["ffprobe_error"] = "ffprobe_timeout"
+        except Exception as exc:  # noqa: BLE001 — best-effort heuristic
+            result["ffprobe_error"] = f"{type(exc).__name__}: {exc}"
+        return result
 
     @staticmethod
     def _coerce_asset_entries(assets: list[dict]) -> list[dict]:

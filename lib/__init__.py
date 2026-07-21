@@ -20,10 +20,12 @@ from lib import (  # noqa: E402  (re-exports for the music-video-anime pipeline)
     music_video_adapter,
     music_video_drift,
     music_video_ids,
+    runtime_swap_suggester,
 )
 
 __all__ = [
     "music_video_adapter",
     "music_video_drift",
     "music_video_ids",
+    "runtime_swap_suggester",
 ]
