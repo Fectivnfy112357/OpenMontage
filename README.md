@@ -227,6 +227,7 @@ This repo is built for agentic operation. If you're an OpenClaw-style agent, her
 
 # Image + video gateway:
 FAL_KEY=your-key               # FLUX images + Google Veo, Kling, MiniMax video + Recraft images
+ATLASCLOUD_API_KEY=your-key    # Atlas Cloud — Seedream/Nano Banana/GPT Image + Kling/Seedance/Hailuo video
 
 # Kling official direct API:
 KLING_API_KEY=your-key         # Official Kling video, image, TTS, avatar, lip sync
@@ -379,8 +380,8 @@ Most "free AI video" stacks quietly mean "animate still images." OpenMontage can
 Edit your own talking-head footage. Generate a fully animated explainer from scratch. Cut a 2-hour podcast into a dozen social clips. Translate and dub your content into 10 languages. Build a cinematic brand teaser from stock footage and AI-generated scenes. **If a production team can make it, OpenMontage can orchestrate it.**
 
 - **12 production pipelines** — explainers, talking heads, screen demos, cinematic trailers, animations, podcasts, localization, documentary montages, and more
-- **52 production tools** — spanning video generation, image creation, text-to-speech, music, audio mixing, subtitles, enhancement, and analysis
-- **400+ agent skills** — production skills, pipeline directors, creative techniques, quality checklists, and deep technology knowledge packs that teach the agent how to use every tool like an expert
+- **100+ production tools** — spanning video generation, image creation, text-to-speech, music, audio mixing, subtitles, enhancement, and analysis
+- **700+ agent skill and production-knowledge files** — pipeline directors, creative techniques, quality checklists, and deep technology knowledge packs that teach the agent how to use every tool like an expert
 - **Reference-driven creation** — paste a video you like and the agent turns it into a grounded, differentiated production plan instead of forcing you to invent the perfect prompt from scratch
 - **Real-footage documentary creation without paid video models** — build actual edited videos from free/open motion footage and archival sources, not just Ken Burns over images
 - **Live web research built in** — before writing a single word of script, the agent runs 15-25+ web searches across YouTube, Reddit, news sites, and academic sources to ground your video in real, current data
@@ -437,7 +438,7 @@ Final video output -- only if self-review passes
 
 ```
 OpenMontage/
-├── tools/              # 48 Python tools (the agent's hands)
+├── tools/              # 100+ Python tools (the agent's hands)
 │   ├── video/          # 13 video gen tools + compose, stitch, trim
 │   ├── audio/          # 4 TTS providers + Suno/ElevenLabs music, mixing, enhancement
 │   ├── graphics/       # 9 image/graphics generation tools + diagrams, code snippets, math
